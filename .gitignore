@@ -4,3 +4,11 @@
 !.dev.vars.example
 .env*
 !.env.example
+
+# Node
+node_modules/
+
+# Agent / tooling local state
+.claude-octopus/
+.claude/settings.local.json
+AGENTS.md

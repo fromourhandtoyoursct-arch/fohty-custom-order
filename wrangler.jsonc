@@ -1,14 +1,37 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "fothy",
+  "main": "src/index.ts",
   "compatibility_date": "2026-05-21",
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "."
+    "directory": "public",
+    "binding": "ASSETS"
   },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fothy",
+      "database_id": "a4302383-d088-41bf-adbe-196e61938683",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "kv_namespaces": [
+    { "binding": "CACHE", "id": "c4fd024ae5724c3d814da8b49becbe8d" },
+    { "binding": "SESSIONS", "id": "5d3bc260bca7437ea9f071b53f530b4f" }
+  ],
+  "vars": {
+    "SQUARE_API_BASE": "https://connect.squareup.com",
+    "SQUARE_VERSION": "2026-04-16",
+    "SQUARE_LOCATION_ID": "L412VQTRM7RXB",
+    "SITE_ORIGIN": "https://fromourhandtoyours.store",
+    "WEBHOOK_NOTIFICATION_URL": "https://fromourhandtoyours.store/api/webhooks/square",
+    "EMAIL_FROM": "noreply@fromourhandtoyours.store",
+    "EMAIL_FROM_NAME": "From Our Hand To Yours"
+  },
+  "triggers": {
+    "crons": ["0 * * * *", "*/15 * * * *"]
+  }
 }

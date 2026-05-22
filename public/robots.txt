@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /account/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /checkout
+Disallow: /cart
+
+Sitemap: https://fromourhandtoyours.store/sitemap.xml
