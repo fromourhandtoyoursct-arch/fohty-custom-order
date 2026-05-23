@@ -55,10 +55,20 @@ customOrder.get('/', (c) => {
               ? html`<div class="alert alert-error">${errorMessage(error)}</div>`
               : ''}
 
-            <form class="co-card" method="post" action="/custom-order/submit">
+            <div class="co-progress">
+              <div class="co-progress-bar"><div class="co-progress-fill" data-co-fill style="width: 25%;"></div></div>
+              <div class="co-progress-labels">
+                <span class="co-progress-label co-state-on" data-co-label="1">You</span>
+                <span class="co-progress-label co-state-off" data-co-label="2">Nails</span>
+                <span class="co-progress-label co-state-off" data-co-label="3">Design</span>
+                <span class="co-progress-label co-state-off" data-co-label="4">Finish</span>
+              </div>
+            </div>
+
+            <form class="co-card" method="post" action="/custom-order/submit" enctype="multipart/form-data" data-co-form>
               <input type="hidden" name="_csrf" value="${csrfToken(c)}">
 
-              <section class="co-step">
+              <section class="co-step" data-co-pane="1">
                 <h3 class="co-step-head">Let's start with you</h3>
                 <div class="co-row co-row-2">
                   <div class="co-fld">
@@ -84,14 +94,14 @@ customOrder.get('/', (c) => {
                 </div>
               </section>
 
-              <section class="co-step">
+              <section class="co-step" data-co-pane="2" hidden>
                 <h3 class="co-step-head">Pick your nail basics</h3>
                 <div class="co-group">
                   <label class="co-group-label">Nail Shape <span class="co-req">*</span></label>
                   <div class="co-pills">
                     ${SHAPES.map(
-                      (s, i) => html`<label class="co-pill">
-                        <input type="radio" name="shape" value="${s}" ${i === 0 ? '' : ''} required>
+                      (s) => html`<label class="co-pill">
+                        <input type="radio" name="shape" value="${s}" required>
                         <span>${s}</span>
                       </label>`
                     )}
@@ -127,7 +137,7 @@ customOrder.get('/', (c) => {
                 </div>
               </section>
 
-              <section class="co-step">
+              <section class="co-step" data-co-pane="3" hidden>
                 <h3 class="co-step-head">Tell us about your design</h3>
                 <div class="co-group">
                   <label class="co-group-label">What style are you going for?</label>
@@ -139,7 +149,7 @@ customOrder.get('/', (c) => {
                       </label>`
                     )}
                   </div>
-                  <p class="co-hint">Select all that apply. If you chose "Other," you can describe or show us below.</p>
+                  <p class="co-hint">Select all that apply. If you chose "Other," you can describe or show us in the next step.</p>
                 </div>
                 <div class="co-group">
                   <label class="co-group-label">Preferred finish</label>
@@ -151,21 +161,22 @@ customOrder.get('/', (c) => {
                       </label>`
                     )}
                   </div>
+                  <p class="co-hint">Select all that apply.</p>
                 </div>
                 <div class="co-group">
                   <label class="co-group-label">Same design on all fingers?</label>
-                  <div class="co-pills">
+                  <div class="co-pills" data-uniformity-group>
                     ${UNIFORMITY.map(
                       (s) => html`<label class="co-pill">
-                        <input type="radio" name="uniformity" value="${s}">
+                        <input type="radio" name="uniformity" value="${s}" data-uniformity="${s}">
                         <span>${s}</span>
                       </label>`
                     )}
                   </div>
                 </div>
-                <div class="co-finger-builder">
-                  <label class="co-group-label">If you want variety, what goes on each finger?</label>
-                  <p class="co-hint">Both hands match unless you tell us otherwise.</p>
+                <div class="co-finger-builder" data-co-finger hidden>
+                  <label class="co-group-label">What do you want on each finger?</label>
+                  <p class="co-hint">Describe the color or design for each finger. Both hands will match unless you tell us otherwise.</p>
                   <div class="co-fingers">
                     <div class="co-finger"><div class="co-nail" aria-hidden="true"></div><input name="finger_thumb" maxlength="160" placeholder="e.g. sage green"><div class="co-finger-label">Thumb</div></div>
                     <div class="co-finger"><div class="co-nail" aria-hidden="true"></div><input name="finger_index" maxlength="160" placeholder="e.g. glitter accent"><div class="co-finger-label">Index</div></div>
@@ -176,7 +187,7 @@ customOrder.get('/', (c) => {
                 </div>
               </section>
 
-              <section class="co-step">
+              <section class="co-step" data-co-pane="4" hidden>
                 <h3 class="co-step-head">Final touches</h3>
                 <div class="co-row">
                   <div class="co-fld">
@@ -184,14 +195,127 @@ customOrder.get('/', (c) => {
                     <textarea id="co-dream" name="dreamDesign" rows="5" maxlength="2000" placeholder="Colors you love, occasion, themes, vibes, or anything that helps us picture what you want. If you chose 'Other' for style, tell us more here. The more you share, the better we can make it yours."></textarea>
                   </div>
                 </div>
-                <p class="co-hint">Have inspiration photos? Reply to our confirmation email with images and we'll add them to your brief.</p>
+                <div class="co-row">
+                  <div class="co-fld">
+                    <label>Inspiration photos (optional)</label>
+                    <label class="co-upload" data-co-drop>
+                      <span class="co-upload-text">Tap to add photos or <span class="co-upload-browse">browse</span></span>
+                      <span class="co-upload-hint">PNG, JPG, HEIC up to 10MB each — names sent with your brief; reply to the confirmation email to attach the actual images.</span>
+                      <input type="file" multiple accept="image/*" data-co-files style="display:none;">
+                    </label>
+                    <input type="hidden" name="photo_names" data-co-photo-names value="">
+                    <div class="co-photo-tags" data-co-photo-tags></div>
+                  </div>
+                </div>
               </section>
 
               <div class="co-nav">
-                <a class="co-back" href="/catalog">Back to shop</a>
-                <button type="submit" class="co-next">Submit My Custom Order</button>
+                <button type="button" class="co-back" data-co-prev hidden>Back</button>
+                <a class="co-back" href="/catalog" data-co-back-shop>Back to shop</a>
+                <button type="button" class="co-next" data-co-next>Next</button>
+                <button type="submit" class="co-next" data-co-submit hidden>Submit My Custom Order</button>
               </div>
             </form>
+
+            <script>
+              (function () {
+                var STEP = 1;
+                var TOTAL = 4;
+                var panes = document.querySelectorAll('[data-co-pane]');
+                var labels = document.querySelectorAll('[data-co-label]');
+                var fill = document.querySelector('[data-co-fill]');
+                var nextBtn = document.querySelector('[data-co-next]');
+                var submitBtn = document.querySelector('[data-co-submit]');
+                var prevBtn = document.querySelector('[data-co-prev]');
+                var shopLink = document.querySelector('[data-co-back-shop]');
+
+                function show(n) {
+                  STEP = n;
+                  panes.forEach(function (p) {
+                    var on = parseInt(p.dataset.coPane, 10) === n;
+                    p.hidden = !on;
+                  });
+                  labels.forEach(function (l) {
+                    var i = parseInt(l.dataset.coLabel, 10);
+                    l.classList.toggle('co-state-on', i === n);
+                    l.classList.toggle('co-state-done', i < n);
+                    l.classList.toggle('co-state-off', i > n);
+                  });
+                  fill.style.width = Math.round(n / TOTAL * 100) + '%';
+                  if (n === 1) { prevBtn.hidden = true; shopLink.hidden = false; }
+                  else { prevBtn.hidden = false; shopLink.hidden = true; }
+                  if (n === TOTAL) { nextBtn.hidden = true; submitBtn.hidden = false; }
+                  else { nextBtn.hidden = false; submitBtn.hidden = true; }
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                function validateStep(n) {
+                  var pane = document.querySelector('[data-co-pane="' + n + '"]');
+                  if (!pane) return true;
+                  var ok = true;
+                  pane.querySelectorAll('input[required]').forEach(function (el) {
+                    if (!el.reportValidity()) ok = false;
+                  });
+                  return ok;
+                }
+                nextBtn.addEventListener('click', function () {
+                  if (!validateStep(STEP)) return;
+                  if (STEP < TOTAL) show(STEP + 1);
+                });
+                prevBtn.addEventListener('click', function () {
+                  if (STEP > 1) show(STEP - 1);
+                });
+
+                // Conditional finger builder
+                document.querySelectorAll('[data-uniformity]').forEach(function (input) {
+                  input.addEventListener('change', function () {
+                    var show = input.value === 'No, I want variety' && input.checked;
+                    var builder = document.querySelector('[data-co-finger]');
+                    if (builder) builder.hidden = !show;
+                  });
+                });
+
+                // File upload (client-side: capture names only)
+                var fileInput = document.querySelector('[data-co-files]');
+                var drop = document.querySelector('[data-co-drop]');
+                var tags = document.querySelector('[data-co-photo-tags]');
+                var hidden = document.querySelector('[data-co-photo-names]');
+                var photoList = [];
+                function renderPhotos() {
+                  if (!tags) return;
+                  tags.innerHTML = photoList.map(function (name, i) {
+                    return '<span class="co-photo-tag">' + name.replace(/[&<>"]/g, function (c) {
+                      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+                    }) + '<button type="button" class="co-photo-rm" data-co-rm="' + i + '" aria-label="Remove">×</button></span>';
+                  }).join('');
+                  hidden.value = photoList.join('|');
+                }
+                function addFiles(files) {
+                  Array.from(files || []).forEach(function (f) { photoList.push(f.name); });
+                  renderPhotos();
+                }
+                if (fileInput) fileInput.addEventListener('change', function (e) { addFiles(e.target.files); });
+                if (drop) {
+                  drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('on'); });
+                  drop.addEventListener('dragleave', function () { drop.classList.remove('on'); });
+                  drop.addEventListener('drop', function (e) {
+                    e.preventDefault();
+                    drop.classList.remove('on');
+                    addFiles(e.dataTransfer && e.dataTransfer.files);
+                  });
+                }
+                if (tags) {
+                  tags.addEventListener('click', function (e) {
+                    var btn = e.target.closest('[data-co-rm]');
+                    if (!btn) return;
+                    var i = parseInt(btn.dataset.coRm, 10);
+                    photoList.splice(i, 1);
+                    renderPhotos();
+                  });
+                }
+
+                show(1);
+              })();
+            </script>
           </div>
         </section>`,
     })
@@ -269,6 +393,7 @@ customOrder.post('/submit', async (c) => {
     ring: get('finger_ring'),
     pinky: get('finger_pinky'),
   };
+  const photoNames = get('photo_names').split('|').filter(Boolean).slice(0, 12);
 
   if (!firstName || !lastName || !email || !shape || !length) {
     return c.redirect('/custom-order?error=missing_fields', 303);
@@ -279,10 +404,33 @@ customOrder.post('/submit', async (c) => {
 
   const ref = 'FOTHY-CO-' + Math.random().toString(36).toUpperCase().slice(-6);
 
+  // Persist the brief so it shows up in /account.
+  try {
+    await c.env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS custom_orders (
+        id TEXT PRIMARY KEY, user_id INTEGER, email TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'awaiting-review', brief_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      )`
+    ).run().catch(() => undefined);
+    const userId = c.get('user_id') ?? null;
+    let linkedUserId: number | null = userId ?? null;
+    if (!linkedUserId) {
+      const u = await c.env.DB.prepare(`SELECT id FROM users WHERE email = ? LIMIT 1`).bind(email.toLowerCase()).first<{ id: number }>().catch(() => null);
+      if (u) linkedUserId = u.id;
+    }
+    const brief = { firstName, lastName, email, phone, shape, length, quantity, deadline, styles, finishes, uniformity, fingers, dreamDesign, photoNames };
+    await c.env.DB.prepare(
+      `INSERT INTO custom_orders (id, user_id, email, brief_json) VALUES (?, ?, ?, ?)`
+    ).bind(ref, linkedUserId, email.toLowerCase(), JSON.stringify(brief)).run();
+  } catch (err) {
+    console.warn('custom-order.persist.failed', err instanceof Error ? err.message : String(err));
+  }
+
   const studioHtml = buildStudioEmail({
     ref, firstName, lastName, email, phone,
     shape, length, quantity, deadline,
-    styles, finishes, uniformity, fingers, dreamDesign,
+    styles, finishes, uniformity, fingers, dreamDesign, photoNames,
   });
   const customerHtml = buildCustomerEmail({ firstName, ref });
 
@@ -326,6 +474,7 @@ interface StudioEmailParams {
   styles: string[]; finishes: string[]; uniformity: string;
   fingers: { thumb: string; index: string; middle: string; ring: string; pinky: string };
   dreamDesign: string;
+  photoNames?: string[];
 }
 
 function buildStudioEmail(p: StudioEmailParams): string {
@@ -357,6 +506,7 @@ function buildStudioEmail(p: StudioEmailParams): string {
           ${fingerRows}
         </table>
         ${p.dreamDesign ? `<div style="margin-top:20px;padding:14px;background:#F5F0E8;border-radius:8px;"><strong style="font-size:13px;color:#5a7a68;">Dream design</strong><p style="margin:8px 0 0;color:#2c4a38;white-space:pre-wrap;">${esc(p.dreamDesign)}</p></div>` : ''}
+        ${p.photoNames && p.photoNames.length > 0 ? `<div style="margin-top:14px;padding:14px;background:#F5F0E8;border-radius:8px;"><strong style="font-size:13px;color:#5a7a68;">Inspiration photos attached by name</strong><ul style="margin:8px 0 0;padding-left:18px;color:#2c4a38;font-size:14px;">${p.photoNames.map((n) => `<li>${esc(n)}</li>`).join('')}</ul><p style="margin:8px 0 0;font-size:12px;color:#5a7a68;font-style:italic;">Ask ${esc(p.firstName)} to reply with the images.</p></div>` : ''}
         <p style="margin-top:24px;font-size:13px;color:#5a7a68;">Reply directly to this email to reach ${esc(p.firstName)}.</p>
       </td></tr>
     </table>

@@ -33,13 +33,15 @@ interface SquareOrder {
 
 type AccountCtx = Context<{ Bindings: Env; Variables: HonoVars }>;
 
-function acctNav(active: 'overview' | 'orders' | 'subs', token: string) {
+function acctNav(active: 'overview' | 'orders' | 'custom' | 'subs' | 'profile', token: string) {
   const link = (id: string, href: string, label: string) =>
     html`<a href="${href}" class="acct-nav-link ${id === active ? 'on' : ''}">${label}</a>`;
   return html`<nav class="acct-nav" aria-label="Account">
     ${link('overview', '/account', 'Overview')}
     ${link('orders', '/account/orders', 'Orders')}
+    ${link('custom', '/account/custom-orders', 'Custom orders')}
     ${link('subs', '/account/subscriptions', 'Subscriptions')}
+    ${link('profile', '/account/profile', 'Profile')}
     <form method="post" action="/logout" class="acct-nav-signout">
       <input type="hidden" name="_csrf" value="${token}">
       <button type="submit" class="acct-nav-link acct-nav-signout-btn">Sign out</button>
@@ -75,6 +77,16 @@ account.get('/', async (c) => {
   const activeSubsCount = (await c.env.DB.prepare(
     `SELECT COUNT(*) as n FROM subscriptions WHERE user_id = ? AND status = 'ACTIVE'`
   ).bind(userId).first<{ n: number }>())?.n ?? 0;
+  await c.env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS custom_orders (
+      id TEXT PRIMARY KEY, user_id INTEGER, email TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'awaiting-review', brief_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )`
+  ).run().catch(() => undefined);
+  const customOrdersCount = (await c.env.DB.prepare(
+    `SELECT COUNT(*) as n FROM custom_orders WHERE user_id = ? OR email = ?`
+  ).bind(userId, user.email.toLowerCase()).first<{ n: number }>())?.n ?? 0;
 
   const firstName = user.email.split('@')[0];
 
@@ -100,10 +112,10 @@ account.get('/', async (c) => {
                     <a class="btn-link acct-tile-link" href="${activeSubsCount > 0 ? '/account/subscriptions' : '/subscriptions'}">${activeSubsCount > 0 ? 'Manage →' : 'See plans →'}</a>
                   </div>
                   <div class="acct-tile">
-                    <span class="eyebrow">Custom order</span>
-                    <h4>Design something just for you</h4>
-                    <p>Tell us what you're dreaming up.</p>
-                    <a class="btn-link acct-tile-link" href="/custom-order">Start a brief →</a>
+                    <span class="eyebrow">Custom orders</span>
+                    <h4>${customOrdersCount > 0 ? `${customOrdersCount} brief${customOrdersCount === 1 ? '' : 's'}` : 'Design something just for you'}</h4>
+                    <p>${customOrdersCount > 0 ? 'View or start a new one.' : "Tell us what you're dreaming up."}</p>
+                    <a class="btn-link acct-tile-link" href="${customOrdersCount > 0 ? '/account/custom-orders' : '/custom-order'}">${customOrdersCount > 0 ? 'View all →' : 'Start a brief →'}</a>
                   </div>
                   <div class="acct-tile">
                     <span class="eyebrow">Email</span>
@@ -340,6 +352,108 @@ account.get('/subscriptions', async (c) => {
                         </li>`
                       )}
                     </ul>`}
+              </div>
+            </div>
+          </div>
+        </section>`,
+    })
+  );
+});
+
+/** GET /account/custom-orders */
+account.get('/custom-orders', async (c) => {
+  const userId = c.get('user_id')!;
+  const user = await c.env.DB.prepare(`SELECT email FROM users WHERE id = ?`).bind(userId).first<{ email: string }>();
+  if (!user) return c.redirect('/logout', 303);
+  await c.env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS custom_orders (
+      id TEXT PRIMARY KEY, user_id INTEGER, email TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'awaiting-review', brief_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )`
+  ).run().catch(() => undefined);
+  const rows = await c.env.DB.prepare(
+    `SELECT id, status, brief_json, created_at FROM custom_orders
+       WHERE user_id = ? OR email = ?
+       ORDER BY created_at DESC LIMIT 50`
+  ).bind(userId, user.email.toLowerCase()).all<{ id: string; status: string; brief_json: string; created_at: number }>();
+  const orders = rows.results ?? [];
+  const token = csrfToken(c);
+  return c.html(
+    Layout({
+      c,
+      title: 'Custom orders',
+      children: html`
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <span class="eyebrow">Your account</span>
+              <h1>Custom orders</h1>
+            </div>
+            <div class="acct-grid">
+              ${acctNav('custom', token)}
+              <div class="acct-content">
+                ${orders.length === 0
+                  ? html`<div class="acct-empty">
+                      <p>You haven't placed a custom order yet.</p>
+                      <a class="btn btn-primary btn-sm" href="/custom-order">Start a brief</a>
+                    </div>`
+                  : html`<div class="acct-orders-preview">
+                      ${orders.map((o) => {
+                        let brief: any = {};
+                        try { brief = JSON.parse(o.brief_json); } catch { /* ignore */ }
+                        return html`<div class="acct-order-row">
+                          <code class="acct-order-id">${o.id}</code>
+                          <div class="acct-order-meta">
+                            <div class="acct-order-line">${brief.shape || '—'} · ${brief.length || '—'}${brief.styles && brief.styles.length ? ' · ' + brief.styles.slice(0,2).join(', ') : ''}</div>
+                            <div class="acct-order-date">${new Date(o.created_at * 1000).toISOString().slice(0, 10)}</div>
+                          </div>
+                          <span class="acct-order-state acct-order-state-${o.status}">${o.status.replace('-', ' ')}</span>
+                          <span class="acct-order-total">${brief.quantity || '1 set'}</span>
+                          <span class="btn-link acct-order-link">brief sent</span>
+                        </div>`;
+                      })}
+                    </div>`}
+                <p style="margin-top:24px;">
+                  <a class="btn btn-secondary btn-sm" href="/custom-order">+ New custom order</a>
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>`,
+    })
+  );
+});
+
+/** GET /account/profile */
+account.get('/profile', async (c) => {
+  const userId = c.get('user_id')!;
+  const user = await c.env.DB.prepare(`SELECT email, created_at FROM users WHERE id = ?`).bind(userId).first<{ email: string; created_at: number }>();
+  if (!user) return c.redirect('/logout', 303);
+  const token = csrfToken(c);
+  return c.html(
+    Layout({
+      c,
+      title: 'Profile',
+      children: html`
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <span class="eyebrow">Your account</span>
+              <h1>Profile</h1>
+            </div>
+            <div class="acct-grid">
+              ${acctNav('profile', token)}
+              <div class="acct-content">
+                <div class="acct-profile-card">
+                  <div class="acct-pf-row"><span>Email</span><span>${user.email}</span></div>
+                  <div class="acct-pf-row"><span>Member since</span><span>${new Date(user.created_at * 1000).toISOString().slice(0, 10)}</span></div>
+                </div>
+                <p class="acct-profile-note">Your account is tied to your email. Use the same email at checkout so your orders link up here.</p>
+                <form method="post" action="/logout">
+                  <input type="hidden" name="_csrf" value="${token}">
+                  <button type="submit" class="btn btn-secondary btn-sm">Sign out</button>
+                </form>
               </div>
             </div>
           </div>

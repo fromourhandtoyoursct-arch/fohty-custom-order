@@ -4,9 +4,12 @@ import { getCookie } from 'hono/cookie';
 import { Layout } from '../views/layout';
 import { ensureCartCookie, hydrateCartForCheckout, hydrateCartForDisplay, loadCart } from '../lib/cart';
 import { createCheckoutLink, CheckoutError } from '../lib/checkout';
+import { captureCartEmail } from '../lib/abandoned-cart';
 import { csrfToken } from '../lib/csrf';
 import { formatMoneyCents } from '../lib/money';
 import type { Env, HonoVars } from '../types';
+
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 const checkout = new Hono<{ Bindings: Env; Variables: HonoVars }>();
 
@@ -68,40 +71,193 @@ checkout.get('/', async (c) => {
     );
   }
 
-  // Sign-in requested but not signed in → bounce to login
-  if (mode === 'signin' && !signedIn) {
-    return c.redirect('/login?return_to=/checkout?mode=signin', 303);
+  // If signed-in user picked "Use your account", short-circuit to payment review.
+  if (mode === 'signin' && signedIn) {
+    return c.html(
+      Layout({
+        c,
+        title: 'Review your order',
+        children: html`
+          <section style="padding-bottom: 64px;">
+            <div class="wrap">
+              <div class="pagehead">
+                <span class="eyebrow">Checkout · Signed in</span>
+                <h1>One last step.</h1>
+              </div>
+              <div class="co-grid">
+                <div class="co-main">
+                  <a class="btn-link co-back" href="/checkout">← Change</a>
+                  <div class="co-review">
+                    <span class="eyebrow">Payment</span>
+                    <h2 class="co-review-head">Ready to pay?</h2>
+                    <div class="co-review-box">
+                      <p>You'll complete shipping &amp; payment on our secure Square page. We never see your card number — promise.</p>
+                      <form method="post" action="/checkout">
+                        <input type="hidden" name="_csrf" value="${token}">
+                        <input type="hidden" name="mode" value="signin">
+                        <button type="submit" class="btn btn-primary btn-lg btn-block" ${hydrated.any_unavailable ? 'disabled aria-disabled="true"' : ''}>Pay ${formatMoneyCents(totalCents)} on Square →</button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+                ${renderSidebar(hydrated, shippingCents, totalCents)}
+              </div>
+            </div>
+          </section>`,
+      })
+    );
   }
 
-  // Order review screen — single "Pay on Square" button (Square collects address + payment)
+  // Guest 3-step flow: Contact → Address → Payment
+  if (mode === 'guest') {
+    return c.html(
+      Layout({
+        c,
+        title: 'Checkout · Guest',
+        children: html`
+          <section style="padding-bottom: 64px;">
+            <div class="wrap">
+              <div class="pagehead">
+                <span class="eyebrow">Checkout · Guest</span>
+                <h1>Where should we send it?</h1>
+              </div>
+              <div class="co-grid">
+                <div class="co-main">
+                  <div class="co-step-nav">
+                    <a class="btn-link co-back" href="/checkout">← Change</a>
+                    <div class="co-step-labels">
+                      <span class="co-step-label on" data-step-label="1">1 · Contact</span>
+                      <span class="co-step-label" data-step-label="2">2 · Address</span>
+                      <span class="co-step-label" data-step-label="3">3 · Payment</span>
+                    </div>
+                  </div>
+
+                  <form class="co-guest-form" method="post" action="/checkout">
+                    <input type="hidden" name="_csrf" value="${token}">
+                    <input type="hidden" name="mode" value="guest">
+
+                    <section class="co-step-pane on" data-step-pane="1">
+                      <span class="eyebrow">Guest checkout</span>
+                      <h2 class="co-review-head">What's your email?</h2>
+                      <div class="fld"><label for="co-email">Email</label>
+                        <input id="co-email" name="email" type="email" required maxlength="200" placeholder="you@there.com">
+                      </div>
+                      <label class="co-checkbox">
+                        <input type="checkbox" name="newsletter_opt_in" value="1" checked>
+                        <span>Send me a note when new sets arrive.</span>
+                      </label>
+                      <div class="co-step-nav-row">
+                        <span></span>
+                        <button type="button" class="btn btn-primary" data-step-next="2">Continue to address</button>
+                      </div>
+                    </section>
+
+                    <section class="co-step-pane" data-step-pane="2" hidden>
+                      <span class="eyebrow">Where to send it</span>
+                      <h2 class="co-review-head">Shipping address</h2>
+                      <div class="fld-row">
+                        <div class="fld"><label for="co-first">First name</label><input id="co-first" name="first_name" required maxlength="80"></div>
+                        <div class="fld"><label for="co-last">Last name</label><input id="co-last" name="last_name" required maxlength="80"></div>
+                      </div>
+                      <div class="fld"><label for="co-addr">Address</label><input id="co-addr" name="address" required maxlength="200"></div>
+                      <div class="fld-row">
+                        <div class="fld"><label for="co-city">City</label><input id="co-city" name="city" required maxlength="80"></div>
+                        <div class="fld"><label for="co-zip">ZIP</label><input id="co-zip" name="zip" required maxlength="12"></div>
+                      </div>
+                      <p class="co-hint" style="color:var(--ink-2);">We'll confirm and complete shipping on the Square checkout page.</p>
+                      <div class="co-step-nav-row">
+                        <button type="button" class="btn btn-secondary" data-step-prev="1">Back</button>
+                        <button type="button" class="btn btn-primary" data-step-next="3">Continue to payment</button>
+                      </div>
+                    </section>
+
+                    <section class="co-step-pane" data-step-pane="3" hidden>
+                      <span class="eyebrow">Payment</span>
+                      <h2 class="co-review-head">One last step.</h2>
+                      <div class="co-review-box">
+                        <p>You'll complete payment on our secure Square page. We never see your card number — promise.</p>
+                        <button type="submit" class="btn btn-primary btn-lg btn-block" ${hydrated.any_unavailable ? 'disabled aria-disabled="true"' : ''}>Pay ${formatMoneyCents(totalCents)} on Square →</button>
+                      </div>
+                      <div class="co-step-nav-row" style="margin-top:12px;">
+                        <button type="button" class="btn btn-ghost btn-sm" data-step-prev="2">Back</button>
+                      </div>
+                    </section>
+                  </form>
+
+                  ${hydrated.any_unavailable
+                    ? html`<p class="cart-side-warning" style="margin-top:12px;">Some items in your bag are unavailable. <a href="/cart">Review your bag</a> before continuing.</p>`
+                    : ''}
+                </div>
+                ${renderSidebar(hydrated, shippingCents, totalCents)}
+              </div>
+            </div>
+
+            <script>
+              (function () {
+                var panes = document.querySelectorAll('[data-step-pane]');
+                var labels = document.querySelectorAll('[data-step-label]');
+                function show(step) {
+                  panes.forEach(function (p) {
+                    var on = p.dataset.stepPane === String(step);
+                    p.hidden = !on;
+                    p.classList.toggle('on', on);
+                  });
+                  labels.forEach(function (l) {
+                    var n = parseInt(l.dataset.stepLabel, 10);
+                    l.classList.toggle('on', n === parseInt(step, 10));
+                    l.classList.toggle('done', n < parseInt(step, 10));
+                  });
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                document.querySelectorAll('[data-step-next]').forEach(function (btn) {
+                  btn.addEventListener('click', function () {
+                    var form = btn.closest('form');
+                    if (!form) return;
+                    // Validate fields in the current pane.
+                    var pane = btn.closest('[data-step-pane]');
+                    var invalid = false;
+                    pane.querySelectorAll('input[required]').forEach(function (el) {
+                      if (!el.reportValidity()) invalid = true;
+                    });
+                    if (invalid) return;
+                    show(btn.dataset.stepNext);
+                  });
+                });
+                document.querySelectorAll('[data-step-prev]').forEach(function (btn) {
+                  btn.addEventListener('click', function () { show(btn.dataset.stepPrev); });
+                });
+              })();
+            </script>
+          </section>`,
+      })
+    );
+  }
+
+  // Sign-in mode: inline magic-link form on the page
   return c.html(
     Layout({
       c,
-      title: 'Review your order',
+      title: 'Checkout · Sign in',
       children: html`
         <section style="padding-bottom: 64px;">
           <div class="wrap">
             <div class="pagehead">
-              <span class="eyebrow">Checkout · ${mode === 'guest' ? 'Guest' : 'Signed in'}</span>
-              <h1>Where should we send it?</h1>
+              <span class="eyebrow">Checkout · Sign in</span>
+              <h1>Magic link, no password.</h1>
             </div>
             <div class="co-grid">
               <div class="co-main">
                 <a class="btn-link co-back" href="/checkout">← Change</a>
-                <div class="co-review">
-                  <span class="eyebrow">Payment</span>
-                  <h2 class="co-review-head">One last step.</h2>
-                  <div class="co-review-box">
-                    <p>You'll complete shipping &amp; payment on our secure Square page. We never see your card number — promise.</p>
-                    <form method="post" action="/checkout">
-                      <input type="hidden" name="_csrf" value="${token}">
-                      <input type="hidden" name="mode" value="${mode}">
-                      <button type="submit" class="btn btn-primary btn-lg btn-block" ${hydrated.any_unavailable ? 'disabled aria-disabled="true"' : ''}>Pay ${formatMoneyCents(totalCents)} on Square →</button>
-                    </form>
-                  </div>
-                  ${hydrated.any_unavailable
-                    ? html`<p class="cart-side-warning" style="margin-top:12px;">Some items in your bag are unavailable. <a href="/cart">Review your bag</a> before continuing.</p>`
-                    : ''}
+                <div class="co-signin-box">
+                  <form method="post" action="/login" class="co-signin-form">
+                    <input type="hidden" name="_csrf" value="${token}">
+                    <input type="hidden" name="return_to" value="/checkout?mode=signin">
+                    <div class="fld"><label for="co-signin-email">Email</label>
+                      <input id="co-signin-email" name="email" type="email" required maxlength="200" placeholder="you@there.com">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg">Send me a link</button>
+                  </form>
+                  <p class="script-note" style="margin-top:18px;font-size:14px;">Or <a class="btn-link" href="/checkout?mode=guest">continue as guest</a> — same checkout, less typing.</p>
                 </div>
               </div>
               ${renderSidebar(hydrated, shippingCents, totalCents)}
@@ -148,8 +304,19 @@ checkout.post('/', async (c) => {
   if (hydrated.lines.length === 0 || hydrated.subtotal_cents <= 0) {
     return c.redirect('/cart?error=invalid', 303);
   }
+
+  // Read email from the multi-step guest form if present; capture for abandoned cart.
+  const form = await c.req.parseBody().catch(() => ({}));
+  const submittedEmail = String((form as any).email ?? '').trim().toLowerCase();
+  const optIn = String((form as any).newsletter_opt_in ?? '') === '1';
+  const buyerEmail = EMAIL_RE.test(submittedEmail) ? submittedEmail : undefined;
+
+  if (buyerEmail) {
+    c.executionCtx.waitUntil(captureCartEmail(c.env, cartId, buyerEmail, optIn).catch(() => undefined));
+  }
+
   try {
-    const result = await createCheckoutLink(c.env, cart, hydrated, { userId: c.get('user_id') });
+    const result = await createCheckoutLink(c.env, cart, hydrated, { userId: c.get('user_id'), buyerEmail });
     return c.redirect(result.paymentLinkUrl, 303);
   } catch (err) {
     if (err instanceof CheckoutError) {

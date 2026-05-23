@@ -55,30 +55,65 @@ subs.get('/', async (c) => {
             <h1 class="subs-pricing-head">A new set in your mailbox, every month.</h1>
             <p class="subs-pricing-sub">Pick a plan. Pause or cancel any time.</p>
 
-            ${plans.length === 0
-              ? html`<div class="empty-state-card">
-                  <p>Subscriptions are coming soon — check back shortly!</p>
-                  <a class="btn btn-primary" href="/catalog">Browse one-time purchases</a>
-                </div>`
-              : html`<div class="subs-cards">
-                  ${plans.map((p, i) => renderPlanCard(p, i === 1, isAuth, token))}
-                </div>`}
-
-            ${!isAuth && plans.length > 0
-              ? html`<p class="hint" style="text-align:center;margin-top:24px;">You'll need to <a href="/login?return_to=/subscriptions">sign in</a> to subscribe.</p>`
-              : ''}
-
-            <div class="subs-quiz-cta">
-              <span class="eyebrow">Want curated picks?</span>
-              <h3>Let our nail tech choose for you.</h3>
-              <p>Take a 4-question style quiz and we'll handcraft a fresh set in your style each month.</p>
-              <div class="subs-quiz-cta-actions">
-                <a class="btn btn-secondary btn-sm" href="/style-quiz?plan=classic">Quiz for Classic</a>
-                <a class="btn btn-secondary btn-sm" href="/style-quiz?plan=luxe">Quiz for Luxe</a>
-              </div>
+            <div class="subs-toggle" role="tablist" aria-label="Commitment length">
+              <button type="button" class="subs-toggle-btn on" data-commit="3" role="tab" aria-selected="true">3 Months</button>
+              <button type="button" class="subs-toggle-btn" data-commit="6" role="tab" aria-selected="false">6 Months <span class="subs-toggle-save">Save More</span></button>
             </div>
+
+            <div class="subs-cards">
+              ${pricingCard('classic', 'Classic', 'Solid colors, French tips, ombre, line art, and simple designs.', [
+                '1 handcrafted set per month',
+                '24 nails, all sizes XS to XL',
+                'Reusable, salon-quality',
+                'Prep kit included',
+              ], { p3: 40, t3: 120, p6: 36, t6: 216 }, false)}
+              ${pricingCard('luxe', 'Luxe', 'Nail art, crystals, charms, foil, glitter, and multi-technique sets.', [
+                'Everything in Classic, plus',
+                'Premium materials and techniques',
+                'Priority custom requests',
+                'Prep kit included',
+              ], { p3: 50, t3: 150, p6: 45, t6: 270 }, true)}
+            </div>
+
+            ${plans.length === 0
+              ? html`<p class="hint" style="text-align:center;margin-top:24px;">Subscriptions are activating soon. Take the style quiz now and we'll have your first set ready.</p>`
+              : !isAuth
+                ? html`<p class="hint" style="text-align:center;margin-top:24px;">You'll need to <a href="/login?return_to=/subscriptions">sign in</a> to subscribe.</p>`
+                : ''}
+
+            ${plans.length > 0
+              ? html`<details class="subs-direct">
+                  <summary><span class="eyebrow">Skip the quiz?</span> Subscribe directly</summary>
+                  <div class="subs-direct-body">
+                    <p>Already know what you want? Subscribe to a plan directly without the style quiz.</p>
+                    <div class="plan-grid">
+                      ${plans.map((p) => renderDirectPlanCard(p, isAuth, token))}
+                    </div>
+                  </div>
+                </details>`
+              : ''}
           </div>
         </section>
+
+        <script>
+          (function () {
+            var btns = document.querySelectorAll('.subs-toggle-btn');
+            function setCommit(months) {
+              btns.forEach(function (b) {
+                var on = b.dataset.commit === String(months);
+                b.classList.toggle('on', on);
+                b.setAttribute('aria-selected', on ? 'true' : 'false');
+              });
+              document.querySelectorAll('[data-pricing]').forEach(function (card) {
+                card.querySelectorAll('[data-price-' + months + ']').forEach(function (el) { el.hidden = false; });
+                var other = months === '3' ? '6' : '3';
+                card.querySelectorAll('[data-price-' + other + ']').forEach(function (el) { el.hidden = true; });
+              });
+            }
+            btns.forEach(function (b) { b.addEventListener('click', function () { setCommit(b.dataset.commit); }); });
+            setCommit('3');
+          })();
+        </script>
 
         <section class="subs-gift" id="gift">
           <div class="wrap" style="max-width: 920px;">
@@ -160,6 +195,59 @@ subs.get('/', async (c) => {
   );
 });
 
+function pricingCard(id: string, name: string, desc: string, perks: string[], price: { p3: number; t3: number; p6: number; t6: number }, featured: boolean) {
+  return html`<article class="subs-card${featured ? ' featured' : ''}" data-pricing="${id}">
+    ${featured ? html`<span class="subs-badge">Most Popular</span>` : ''}
+    <h3 class="subs-plan-name">${name}</h3>
+    <p class="subs-plan-desc">${desc}</p>
+    <div class="subs-price-stack">
+      <div class="subs-price-tier" data-price-3>
+        <div class="subs-price-row">
+          <span class="subs-price">$${price.p3}</span>
+          <span class="subs-price-unit">/set</span>
+        </div>
+        <div class="subs-billed">$${price.t3} billed every 3 months</div>
+      </div>
+      <div class="subs-price-tier" data-price-6 hidden>
+        <div class="subs-price-row">
+          <span class="subs-price">$${price.p6}</span>
+          <span class="subs-price-unit">/set</span>
+        </div>
+        <div class="subs-billed">$${price.t6} billed every 6 months</div>
+      </div>
+    </div>
+    <ul class="subs-perks">
+      ${perks.map((p) => html`<li>${check}<span>${p}</span></li>`)}
+    </ul>
+    <a class="subs-cta" href="/style-quiz?plan=${id}">Choose ${name}</a>
+  </article>`;
+}
+
+function renderDirectPlanCard(plan: Awaited<ReturnType<typeof listSubscriptionPlans>>[number], isAuth: boolean, token: string) {
+  return html`<article class="plan-card">
+    <h4 class="plan-card-name">${plan.name}</h4>
+    ${plan.description ? html`<p class="plan-card-desc">${plan.description}</p>` : ''}
+    <ul class="plan-variations">
+      ${plan.variations.map(
+        (v: SubscriptionPlanVariation) => html`<li class="plan-variation">
+          <div>
+            <div class="plan-variation-name">${v.name || cadenceLabel(v.cadence)}</div>
+            <div class="plan-variation-cadence">${cadenceLabel(v.cadence)}</div>
+          </div>
+          <div class="plan-variation-price">${formatMoneyCents(v.priceCents, v.currency)}</div>
+          ${isAuth
+            ? html`<form method="post" action="/subscriptions/subscribe">
+                <input type="hidden" name="_csrf" value="${token}">
+                <input type="hidden" name="plan_variation_id" value="${v.id}">
+                <button type="submit" class="btn btn-primary btn-sm">Subscribe</button>
+              </form>`
+            : html`<a class="btn btn-secondary btn-sm" href="/login?return_to=/subscriptions">Sign in</a>`}
+        </li>`
+      )}
+    </ul>
+  </article>`;
+}
+
 function renderGiftDetails(kind: 'set' | 'subscription', token: string) {
   const title = kind === 'set' ? 'Gift a Set' : 'Gift a Subscription';
   const desc = kind === 'set'
@@ -233,31 +321,6 @@ function renderGiftDetails(kind: 'set' | 'subscription', token: string) {
   </details>`;
 }
 
-function renderPlanCard(plan: Awaited<ReturnType<typeof listSubscriptionPlans>>[number], featured: boolean, isAuth: boolean, token: string) {
-  return html`<article class="subs-card${featured ? ' featured' : ''}">
-    ${featured ? html`<span class="subs-badge">Most Popular</span>` : ''}
-    <h3 class="subs-plan-name">${plan.name}</h3>
-    ${plan.description ? html`<p class="subs-plan-desc">${plan.description}</p>` : ''}
-    <ul class="subs-variations">
-      ${plan.variations.map(
-        (v: SubscriptionPlanVariation) => html`<li class="subs-variation">
-          <div>
-            <div class="subs-variation-name">${v.name || cadenceLabel(v.cadence)}</div>
-            <div class="subs-variation-cadence">${cadenceLabel(v.cadence)}</div>
-          </div>
-          <div class="subs-variation-price">${formatMoneyCents(v.priceCents, v.currency)}</div>
-          ${isAuth
-            ? html`<form method="post" action="/subscriptions/subscribe">
-                <input type="hidden" name="_csrf" value="${token}">
-                <input type="hidden" name="plan_variation_id" value="${v.id}">
-                <button type="submit" class="subs-cta-sm">Subscribe</button>
-              </form>`
-            : html`<a class="subs-cta-sm subs-cta-ghost" href="/login?return_to=/subscriptions">Sign in</a>`}
-        </li>`
-      )}
-    </ul>
-  </article>`;
-}
 
 function cadenceLabel(cad: string): string {
   switch (cad.toUpperCase()) {

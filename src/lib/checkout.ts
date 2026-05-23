@@ -64,7 +64,7 @@ export async function createCheckoutLink(
   env: Env,
   cart: Cart,
   hydrated: HydratedCart,
-  opts: { userId?: number; redirectPath?: string } = {}
+  opts: { userId?: number; redirectPath?: string; buyerEmail?: string } = {}
 ): Promise<CheckoutResult> {
   if (hydrated.lines.length === 0) {
     throw new CheckoutError('empty', 'Your cart is empty.');
@@ -159,6 +159,7 @@ export async function createCheckoutLink(
       enable_coupon: true,
       enable_loyalty: false,
     },
+    ...(opts.buyerEmail ? { pre_populated_data: { buyer_email: opts.buyerEmail } } : {}),
   };
 
   let resp: CreatePaymentLinkResponse;

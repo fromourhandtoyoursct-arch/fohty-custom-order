@@ -292,9 +292,19 @@
       });
     }
     if (searchForm) {
-      searchForm.addEventListener('submit', (e) => {
+      searchForm.addEventListener('submit', async (e) => {
         const q = (searchInput && searchInput.value || '').trim();
-        if (!q) e.preventDefault();
+        if (!q) { e.preventDefault(); return; }
+        // Match design: Enter navigates directly to the first result.
+        e.preventDefault();
+        try {
+          const resp = await fetch(`/catalog/search.json?q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } });
+          const json = resp.ok ? await resp.json() : null;
+          const first = json && json.results && json.results[0];
+          if (first && first.url) { window.location.href = first.url; return; }
+        } catch (_) { /* fall through */ }
+        // No matches → submit to /catalog?q= as a fallback browse.
+        window.location.href = `/catalog?q=${encodeURIComponent(q)}`;
       });
     }
   }
