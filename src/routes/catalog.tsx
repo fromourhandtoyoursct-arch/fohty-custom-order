@@ -7,9 +7,23 @@ import type { Env, HonoVars } from '../types';
 
 const catalog = new Hono<{ Bindings: Env; Variables: HonoVars }>();
 
+const LENGTHS = ['All', 'Short', 'Medium', 'Long'];
+const SHAPES = ['All', 'Almond', 'Coffin', 'Round', 'Square', 'Squoval', 'Stiletto', 'Holiday'];
+
+function filterPills(rowLabel: string, options: string[]) {
+  // Visual-only pills; live filtering requires Square attributes we don't yet model server-side.
+  return html`<div class="shop-filter-row">
+    <span class="shop-filter-label">${rowLabel}:</span>
+    <div class="shop-filter-pills">
+      ${options.map(
+        (o, i) => html`<button type="button" class="shop-pill ${i === 0 ? 'on' : ''}" data-filter="${rowLabel.toLowerCase()}" data-value="${o}">${o}</button>`
+      )}
+    </div>
+  </div>`;
+}
+
 catalog.get('/', async (c) => {
   const snap = await getCatalog(c.env, { waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx) });
-  const visibleCategories = snap.categories.filter((cat) => cat.onlineVisible);
 
   return c.html(
     Layout({
@@ -17,25 +31,24 @@ catalog.get('/', async (c) => {
       title: 'Shop',
       description: 'Browse our full collection of hand-crafted press-on nail sets.',
       children: html`
-        <section class="section">
-          <div class="container">
-            <header class="page-header">
-              <h1>Shop</h1>
-              <p>${snap.items.length} ${snap.items.length === 1 ? 'product' : 'products'} available.</p>
-            </header>
-            ${visibleCategories.length > 0
-              ? html`<nav class="category-nav" aria-label="Categories">
-                  <a href="/catalog" class="category-chip active">All</a>
-                  ${visibleCategories.map(
-                    (cat) =>
-                      html`<a href="/catalog/${encodeURIComponent(cat.id)}" class="category-chip">${cat.name}</a>`
-                  )}
-                </nav>`
-              : ''}
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <h1 class="shop-head">Choose the set that is uniquely you.</h1>
+            </div>
+
+            <div class="shop-filters">
+              ${filterPills('Length', LENGTHS)}
+              ${filterPills('Shape', SHAPES)}
+            </div>
+
             ${snap.items.length === 0
               ? html`<p class="empty-state">No products available right now. Please check back soon.</p>`
-              : html`<div class="product-grid">
+              : html`<div class="cgrid">
                   ${snap.items.map((it) => ProductCard({ item: it, snap }))}
+                  <div class="shop-soon-card" aria-hidden="true">
+                    <span>More being made by hand soon.</span>
+                  </div>
                 </div>`}
           </div>
         </section>`,
@@ -57,31 +70,24 @@ catalog.get('/:categoryId', async (c) => {
     );
   }
   const items = itemsInCategory(snap, cat.id);
-  const visibleCategories = snap.categories.filter((c2) => c2.onlineVisible);
 
   return c.html(
     Layout({
       c,
       title: cat.name,
       children: html`
-        <section class="section">
-          <div class="container">
-            <header class="page-header">
-              <h1>${cat.name}</h1>
-              <p>${items.length} ${items.length === 1 ? 'product' : 'products'}.</p>
-            </header>
-            <nav class="category-nav" aria-label="Categories">
-              <a href="/catalog" class="category-chip">All</a>
-              ${visibleCategories.map(
-                (c2) =>
-                  html`<a href="/catalog/${encodeURIComponent(c2.id)}" class="category-chip ${c2.id === cat.id ? 'active' : ''}">${c2.name}</a>`
-              )}
-            </nav>
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <h1 class="shop-head">${cat.name}</h1>
+              <p class="sub">${items.length} ${items.length === 1 ? 'set' : 'sets'} in this collection.</p>
+            </div>
             ${items.length === 0
               ? html`<p class="empty-state">No products in this category right now.</p>`
-              : html`<div class="product-grid">
+              : html`<div class="cgrid">
                   ${items.map((it) => ProductCard({ item: it, snap }))}
                 </div>`}
+            <p style="margin-top: 48px;"><a href="/catalog">← All sets</a></p>
           </div>
         </section>`,
     })

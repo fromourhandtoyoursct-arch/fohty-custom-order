@@ -7,6 +7,7 @@ import { authLoader } from './middleware/auth';
 import { sweepAbandonedCarts } from './lib/abandoned-cart';
 import { refreshCatalog } from './lib/catalog';
 import home from './routes/home';
+import about from './routes/about';
 import catalog from './routes/catalog';
 import product from './routes/product';
 import cart from './routes/cart';
@@ -41,6 +42,7 @@ app.route('/unsubscribe', unsubscribe);
 app.route('/', auth);
 app.route('/', webhooks);
 app.route('/', sitemap);
+app.route('/', about);
 app.route('/', home);
 
 app.notFound((c) =>

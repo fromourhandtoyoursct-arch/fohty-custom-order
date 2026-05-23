@@ -125,13 +125,13 @@ export function Layout({ c, title, description, canonical, children }: LayoutPro
         </a>
       </div>
       <nav class="footer-links" aria-label="Footer">
-        <a href="/how-to-apply">How to Apply</a>
+        <a href="/subscriptions#how-to-apply">How to Apply</a>
         <span class="footer-sep" aria-hidden="true">·</span>
-        <a href="/shipping">Shipping</a>
+        <a href="/subscriptions#shipping">Shipping</a>
         <span class="footer-sep" aria-hidden="true">·</span>
-        <a href="/returns">Returns</a>
+        <a href="/subscriptions#returns">Returns</a>
         <span class="footer-sep" aria-hidden="true">·</span>
-        <a href="/contact">Contact</a>
+        <a href="/subscriptions#contact">Contact</a>
       </nav>
       <div class="footer-bottom">
         <small>&copy; ${new Date().getFullYear()} ${env.EMAIL_FROM_NAME} LLC</small>
