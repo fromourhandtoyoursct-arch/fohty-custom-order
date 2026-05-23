@@ -21,7 +21,7 @@ interface SquareOrder {
   id: string;
   location_id: string;
   reference_id?: string;
-  state?: string; // OPEN, COMPLETED, CANCELED, DRAFT
+  state?: string;
   created_at?: string;
   updated_at?: string;
   customer_id?: string;
@@ -31,40 +31,109 @@ interface SquareOrder {
   metadata?: Record<string, string>;
 }
 
+type AccountCtx = Context<{ Bindings: Env; Variables: HonoVars }>;
+
+function acctNav(active: 'overview' | 'orders' | 'subs', token: string) {
+  const link = (id: string, href: string, label: string) =>
+    html`<a href="${href}" class="acct-nav-link ${id === active ? 'on' : ''}">${label}</a>`;
+  return html`<nav class="acct-nav" aria-label="Account">
+    ${link('overview', '/account', 'Overview')}
+    ${link('orders', '/account/orders', 'Orders')}
+    ${link('subs', '/account/subscriptions', 'Subscriptions')}
+    <form method="post" action="/logout" class="acct-nav-signout">
+      <input type="hidden" name="_csrf" value="${token}">
+      <button type="submit" class="acct-nav-link acct-nav-signout-btn">Sign out</button>
+    </form>
+  </nav>`;
+}
+
 /** GET /account — overview */
 account.get('/', async (c) => {
   const userId = c.get('user_id')!;
   const user = await c.env.DB.prepare(`SELECT email, square_customer_id, created_at FROM users WHERE id = ?`).bind(userId).first<{ email: string; square_customer_id: string | null; created_at: number }>();
   if (!user) return c.redirect('/logout', 303);
+  const token = csrfToken(c);
+
+  // Pull recent orders preview (limit 3)
+  let recent: SquareOrder[] = [];
+  if (user.square_customer_id) {
+    try {
+      const resp = await squareFetch<SquareOrderSearchResp>(c.env, '/v2/orders/search', {
+        method: 'POST',
+        body: {
+          location_ids: [c.env.SQUARE_LOCATION_ID],
+          query: {
+            filter: { customer_filter: { customer_ids: [user.square_customer_id] } },
+            sort: { sort_field: 'CREATED_AT', sort_order: 'DESC' },
+          },
+          limit: 3,
+        },
+      });
+      recent = resp.orders ?? [];
+    } catch { /* ignore */ }
+  }
+  const activeSubsCount = (await c.env.DB.prepare(
+    `SELECT COUNT(*) as n FROM subscriptions WHERE user_id = ? AND status = 'ACTIVE'`
+  ).bind(userId).first<{ n: number }>())?.n ?? 0;
+
+  const firstName = user.email.split('@')[0];
+
   return c.html(
     Layout({
       c,
       title: 'Account',
       children: html`
-        <section class="section">
-          <div class="container">
-            <header class="page-header">
-              <h1>Account</h1>
-              <p>Signed in as <strong>${user.email}</strong></p>
-            </header>
-            <nav class="account-nav">
-              <a href="/account" class="account-nav-link active">Overview</a>
-              <a href="/account/orders" class="account-nav-link">Orders</a>
-              <a href="/account/subscriptions" class="account-nav-link">Subscriptions</a>
-              <form method="post" action="/logout" style="display:inline-block;margin-left:auto;">
-                <input type="hidden" name="_csrf" value="${csrfToken(c)}">
-                <button type="submit" class="link-button">Sign out</button>
-              </form>
-            </nav>
-            <div class="account-cards">
-              <a class="account-card" href="/account/orders">
-                <h2>Orders</h2>
-                <p>View your past orders and shipping status.</p>
-              </a>
-              <a class="account-card" href="/account/subscriptions">
-                <h2>Subscriptions</h2>
-                <p>Manage your subscription, pause or cancel.</p>
-              </a>
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <span class="eyebrow">Your account</span>
+              <h1>Welcome back, ${firstName}.</h1>
+            </div>
+            <div class="acct-grid">
+              ${acctNav('overview', token)}
+              <div class="acct-content">
+                <div class="acct-tiles">
+                  <div class="acct-tile">
+                    <span class="eyebrow">Made For You, Monthly</span>
+                    <h4>${activeSubsCount > 0 ? `${activeSubsCount} active subscription${activeSubsCount === 1 ? '' : 's'}` : 'Not subscribed yet'}</h4>
+                    <p>${activeSubsCount > 0 ? 'Manage cadence, pause or cancel.' : 'A fresh set delivered every month.'}</p>
+                    <a class="btn-link acct-tile-link" href="${activeSubsCount > 0 ? '/account/subscriptions' : '/subscriptions'}">${activeSubsCount > 0 ? 'Manage →' : 'See plans →'}</a>
+                  </div>
+                  <div class="acct-tile">
+                    <span class="eyebrow">Custom order</span>
+                    <h4>Design something just for you</h4>
+                    <p>Tell us what you're dreaming up.</p>
+                    <a class="btn-link acct-tile-link" href="/custom-order">Start a brief →</a>
+                  </div>
+                  <div class="acct-tile">
+                    <span class="eyebrow">Email</span>
+                    <h4 class="acct-tile-mono">${user.email}</h4>
+                    <p>This is the address we send order updates to.</p>
+                  </div>
+                </div>
+
+                <span class="eyebrow acct-section-eyebrow">Recent orders</span>
+                ${recent.length === 0
+                  ? html`<div class="acct-empty">
+                      <p>You haven't placed any orders yet.</p>
+                      <a class="btn btn-primary btn-sm" href="/catalog">Start shopping</a>
+                    </div>`
+                  : html`<div class="acct-orders-preview">
+                      ${recent.map(
+                        (o) => html`<a class="acct-order-row" href="/account/orders/${encodeURIComponent(o.id)}">
+                          <code class="acct-order-id">${o.id.slice(0, 8)}</code>
+                          <div class="acct-order-meta">
+                            <div class="acct-order-line">${(o.line_items ?? []).slice(0, 2).map((li) => li.name ?? '').filter(Boolean).join(', ') || 'Order'}</div>
+                            <div class="acct-order-date">${(o.created_at ?? '').slice(0, 10)}</div>
+                          </div>
+                          <span class="acct-order-state acct-order-state-${(o.state ?? 'OPEN').toLowerCase()}">${o.state ?? 'OPEN'}</span>
+                          <span class="acct-order-total">${formatMoneyCents(o.total_money?.amount ?? 0, o.total_money?.currency ?? 'USD')}</span>
+                          <span class="btn-link acct-order-link">Details →</span>
+                        </a>`
+                      )}
+                      <a class="btn-link acct-orders-all" href="/account/orders">All orders →</a>
+                    </div>`}
+              </div>
             </div>
           </div>
         </section>`,
@@ -77,6 +146,7 @@ account.get('/orders', async (c) => {
   const userId = c.get('user_id')!;
   const user = await c.env.DB.prepare(`SELECT email, square_customer_id FROM users WHERE id = ?`).bind(userId).first<{ email: string; square_customer_id: string | null }>();
   if (!user) return c.redirect('/logout', 303);
+  const token = csrfToken(c);
 
   let orders: SquareOrder[] = [];
   if (user.square_customer_id) {
@@ -103,38 +173,43 @@ account.get('/orders', async (c) => {
       c,
       title: 'Orders',
       children: html`
-        <section class="section">
-          <div class="container">
-            <header class="page-header">
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <span class="eyebrow">Your account</span>
               <h1>Orders</h1>
-              <p>${orders.length} ${orders.length === 1 ? 'order' : 'orders'} on file.</p>
-            </header>
-            ${orders.length === 0
-              ? html`<div class="empty-state-card">
-                  <p>You haven't placed any orders yet.</p>
-                  <a class="btn btn-primary" href="/catalog">Start shopping</a>
-                </div>`
-              : html`<ul class="order-list">
-                  ${orders.map(
-                    (o) => html`<li class="order-list-item">
-                      <a href="/account/orders/${encodeURIComponent(o.id)}" class="order-list-link">
-                        <div class="order-list-meta">
-                          <span class="order-list-date">${(o.created_at ?? '').slice(0, 10)}</span>
-                          <span class="order-list-state order-list-state-${(o.state ?? 'OPEN').toLowerCase()}">${o.state ?? 'OPEN'}</span>
-                        </div>
-                        <div class="order-list-id">Order ${o.id.slice(0, 8)}</div>
-                        <div class="order-list-total">${formatMoneyCents(o.total_money?.amount ?? 0, o.total_money?.currency ?? 'USD')}</div>
-                      </a>
-                    </li>`
-                  )}
-                </ul>`}
+            </div>
+            <div class="acct-grid">
+              ${acctNav('orders', token)}
+              <div class="acct-content">
+                ${orders.length === 0
+                  ? html`<div class="acct-empty">
+                      <p>You haven't placed any orders yet.</p>
+                      <a class="btn btn-primary btn-sm" href="/catalog">Start shopping</a>
+                    </div>`
+                  : html`<div class="acct-orders-preview">
+                      ${orders.map(
+                        (o) => html`<a class="acct-order-row" href="/account/orders/${encodeURIComponent(o.id)}">
+                          <code class="acct-order-id">${o.id.slice(0, 8)}</code>
+                          <div class="acct-order-meta">
+                            <div class="acct-order-line">${(o.line_items ?? []).slice(0, 2).map((li) => li.name ?? '').filter(Boolean).join(', ') || 'Order'}</div>
+                            <div class="acct-order-date">${(o.created_at ?? '').slice(0, 10)}</div>
+                          </div>
+                          <span class="acct-order-state acct-order-state-${(o.state ?? 'OPEN').toLowerCase()}">${o.state ?? 'OPEN'}</span>
+                          <span class="acct-order-total">${formatMoneyCents(o.total_money?.amount ?? 0, o.total_money?.currency ?? 'USD')}</span>
+                          <span class="btn-link acct-order-link">Details →</span>
+                        </a>`
+                      )}
+                    </div>`}
+              </div>
+            </div>
           </div>
         </section>`,
     })
   );
 });
 
-/** GET /account/orders/:id — verify ownership via square_customer_id */
+/** GET /account/orders/:id */
 account.get('/orders/:id', async (c) => {
   const userId = c.get('user_id')!;
   const orderId = c.req.param('id') ?? '';
@@ -159,29 +234,36 @@ account.get('/orders/:id', async (c) => {
     c.status(404);
     return c.html(orderNotFound(c));
   }
+  const token = csrfToken(c);
 
   return c.html(
     Layout({
       c,
       title: `Order ${order.id.slice(0, 8)}`,
       children: html`
-        <section class="section">
-          <div class="container narrow-col">
-            <header class="page-header">
-              <h1>Order ${order.id.slice(0, 8)}</h1>
-              <p>Placed ${(order.created_at ?? '').slice(0, 10)} · ${order.state ?? 'OPEN'}</p>
-            </header>
-            <ul class="order-detail-lines">
-              ${(order.line_items ?? []).map(
-                (li) => html`<li class="order-detail-line">
-                  <span class="order-detail-line-name">${li.name ?? ''}</span>
-                  <span class="order-detail-line-qty">×${li.quantity ?? '1'}</span>
-                  <span class="order-detail-line-amount">${formatMoneyCents(li.gross_sales_money?.amount ?? 0, li.gross_sales_money?.currency ?? 'USD')}</span>
-                </li>`
-              )}
-            </ul>
-            <div class="order-detail-total"><strong>Total:</strong> ${formatMoneyCents(order.total_money?.amount ?? 0, order.total_money?.currency ?? 'USD')}</div>
-            <p><a href="/account/orders">← All orders</a></p>
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <span class="eyebrow">Order ${order.id.slice(0, 8)}</span>
+              <h1>Order detail</h1>
+            </div>
+            <div class="acct-grid">
+              ${acctNav('orders', token)}
+              <div class="acct-content">
+                <p class="acct-order-summary">Placed ${(order.created_at ?? '').slice(0, 10)} · ${order.state ?? 'OPEN'}</p>
+                <ul class="order-detail-lines">
+                  ${(order.line_items ?? []).map(
+                    (li) => html`<li class="order-detail-line">
+                      <span class="order-detail-line-name">${li.name ?? ''}</span>
+                      <span class="order-detail-line-qty">×${li.quantity ?? '1'}</span>
+                      <span class="order-detail-line-amount">${formatMoneyCents(li.gross_sales_money?.amount ?? 0, li.gross_sales_money?.currency ?? 'USD')}</span>
+                    </li>`
+                  )}
+                </ul>
+                <div class="acct-order-total-row"><strong>Total</strong> ${formatMoneyCents(order.total_money?.amount ?? 0, order.total_money?.currency ?? 'USD')}</div>
+                <p><a class="btn-link" href="/account/orders">← All orders</a></p>
+              </div>
+            </div>
           </div>
         </section>`,
     })
@@ -209,60 +291,62 @@ account.get('/subscriptions', async (c) => {
       c,
       title: 'Subscriptions',
       children: html`
-        <section class="section">
-          <div class="container">
-            <header class="page-header">
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <span class="eyebrow">Your account</span>
               <h1>Subscriptions</h1>
-              <p>${items.length} subscription${items.length === 1 ? '' : 's'}.</p>
-            </header>
-            ${items.length === 0
-              ? html`<div class="empty-state-card">
-                  <p>You don't have any active subscriptions.</p>
-                  <a class="btn btn-primary" href="/subscriptions">Browse plans</a>
-                </div>`
-              : html`<ul class="sub-list">
-                  ${items.map(
-                    (s) => html`<li class="sub-item">
-                      <div class="sub-meta">
-                        <div class="sub-status sub-status-${s.status.toLowerCase()}">${s.status}</div>
-                        <div class="sub-id">Sub ${s.square_subscription_id.slice(0, 8)}</div>
-                        <div class="sub-dates">
-                          Started ${s.start_date}
-                          ${s.next_billing_date ? html` · Next charge ${s.next_billing_date}` : ''}
-                        </div>
-                      </div>
-                      <div class="sub-actions">
-                        ${s.status === 'ACTIVE'
-                          ? html`<form method="post" action="/account/subscriptions/${s.square_subscription_id}/pause">
-                              <input type="hidden" name="_csrf" value="${token}">
-                              <button type="submit" class="btn btn-secondary btn-sm">Pause</button>
-                            </form>
-                            <form method="post" action="/account/subscriptions/${s.square_subscription_id}/cancel" onsubmit="return confirm('Cancel this subscription?');">
-                              <input type="hidden" name="_csrf" value="${token}">
-                              <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
-                            </form>`
-                          : s.status === 'PAUSED'
-                            ? html`<form method="post" action="/account/subscriptions/${s.square_subscription_id}/resume">
-                                <input type="hidden" name="_csrf" value="${token}">
-                                <button type="submit" class="btn btn-primary btn-sm">Resume</button>
-                              </form>
-                              <form method="post" action="/account/subscriptions/${s.square_subscription_id}/cancel" onsubmit="return confirm('Cancel this subscription?');">
-                                <input type="hidden" name="_csrf" value="${token}">
-                                <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
-                              </form>`
-                            : ''}
-                      </div>
-                    </li>`
-                  )}
-                </ul>`}
+            </div>
+            <div class="acct-grid">
+              ${acctNav('subs', token)}
+              <div class="acct-content">
+                ${items.length === 0
+                  ? html`<div class="acct-empty">
+                      <p>You don't have any active subscriptions.</p>
+                      <a class="btn btn-primary btn-sm" href="/subscriptions">Browse plans</a>
+                    </div>`
+                  : html`<ul class="acct-subs">
+                      ${items.map(
+                        (s) => html`<li class="acct-sub">
+                          <div class="acct-sub-meta">
+                            <div class="acct-sub-status acct-sub-status-${s.status.toLowerCase()}">${s.status}</div>
+                            <div class="acct-sub-id">Sub ${s.square_subscription_id.slice(0, 8)}</div>
+                            <div class="acct-sub-dates">
+                              Started ${s.start_date}
+                              ${s.next_billing_date ? html` · Next charge ${s.next_billing_date}` : ''}
+                            </div>
+                          </div>
+                          <div class="acct-sub-actions">
+                            ${s.status === 'ACTIVE'
+                              ? html`<form method="post" action="/account/subscriptions/${s.square_subscription_id}/pause">
+                                  <input type="hidden" name="_csrf" value="${token}">
+                                  <button type="submit" class="btn btn-secondary btn-sm">Pause</button>
+                                </form>
+                                <form method="post" action="/account/subscriptions/${s.square_subscription_id}/cancel" onsubmit="return confirm('Cancel this subscription?');">
+                                  <input type="hidden" name="_csrf" value="${token}">
+                                  <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
+                                </form>`
+                              : s.status === 'PAUSED'
+                                ? html`<form method="post" action="/account/subscriptions/${s.square_subscription_id}/resume">
+                                    <input type="hidden" name="_csrf" value="${token}">
+                                    <button type="submit" class="btn btn-primary btn-sm">Resume</button>
+                                  </form>
+                                  <form method="post" action="/account/subscriptions/${s.square_subscription_id}/cancel" onsubmit="return confirm('Cancel this subscription?');">
+                                    <input type="hidden" name="_csrf" value="${token}">
+                                    <button type="submit" class="btn btn-secondary btn-sm">Cancel</button>
+                                  </form>`
+                                : ''}
+                          </div>
+                        </li>`
+                      )}
+                    </ul>`}
+              </div>
+            </div>
           </div>
         </section>`,
     })
   );
 });
-
-/** Subscription lifecycle actions — verify ownership before calling Square. */
-type AccountCtx = Context<{ Bindings: Env; Variables: HonoVars }>;
 
 async function verifyOwnership(c: AccountCtx, subId: string): Promise<boolean> {
   const userId = c.get('user_id') as number | undefined;
@@ -271,7 +355,6 @@ async function verifyOwnership(c: AccountCtx, subId: string): Promise<boolean> {
     `SELECT 1 FROM subscriptions WHERE square_subscription_id = ? AND user_id = ?`
   ).bind(subId, userId).first();
   if (row) return true;
-  // Fallback: check Square directly (covers race where webhook hasn't fired yet).
   const user = await (c.env.DB.prepare(`SELECT square_customer_id FROM users WHERE id = ?`).bind(userId).first() as Promise<{ square_customer_id: string | null } | null>);
   if (!user?.square_customer_id) return false;
   const sub = await retrieveSubscription(c.env, subId).catch(() => null);

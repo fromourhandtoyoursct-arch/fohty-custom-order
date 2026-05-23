@@ -18,74 +18,110 @@ cart.get('/', async (c) => {
   const hydrated = await hydrateCartForDisplay(c.env, raw, { waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx) });
   const token = csrfToken(c);
 
+  const signedIn = !!c.get('user_id');
+  const itemCount = hydrated.lines.reduce((n, l) => n + l.qty, 0);
+  const shippingCents = hydrated.subtotal_cents >= 6000 || hydrated.subtotal_cents === 0 ? 0 : 600;
+  const totalCents = hydrated.subtotal_cents + shippingCents;
+
+  if (hydrated.lines.length === 0) {
+    return c.html(
+      Layout({
+        c,
+        title: 'Your bag',
+        children: html`
+          <section class="section-y">
+            <div class="wrap" style="max-width: 640px; text-align: center;">
+              <span class="eyebrow">Your bag</span>
+              <h1 style="margin: 12px 0 16px; font-family: var(--font-display); font-size: clamp(40px, 6vw, 56px);">Empty for now.</h1>
+              <p class="serif-italic" style="color: var(--ink-2); margin-bottom: 32px;">Let's fix that.</p>
+              <a class="btn btn-primary btn-lg" href="/catalog">Browse the shop</a>
+            </div>
+          </section>`,
+      })
+    );
+  }
+
   return c.html(
     Layout({
       c,
-      title: 'Your cart',
+      title: 'Your bag',
       children: html`
-        <section class="section">
-          <div class="container">
-            <header class="page-header">
-              <h1>Your cart</h1>
-              <p>${hydrated.lines.length} ${hydrated.lines.length === 1 ? 'item' : 'items'}</p>
-            </header>
-            ${hydrated.lines.length === 0
-              ? html`<div class="empty-state-card">
-                  <p>Your cart is empty.</p>
-                  <a class="btn btn-primary" href="/catalog">Start shopping</a>
-                </div>`
-              : html`<div class="cart-layout">
-                  <div class="cart-lines">
-                    ${hydrated.lines.map(
-                      (line) => html`<div class="cart-line ${line.available ? '' : 'cart-line-unavailable'}">
-                        <div class="cart-line-image">
-                          ${line.image_url
-                            ? html`<img src="${line.image_url}" alt="" width="120" height="120" loading="lazy">`
-                            : html`<div class="cart-line-image-fallback"></div>`}
-                        </div>
-                        <div class="cart-line-info">
-                          <div class="cart-line-name">${line.item_name}</div>
-                          ${line.variation_name ? html`<div class="cart-line-variation">${line.variation_name}</div>` : ''}
-                          ${line.available
-                            ? html`<div class="cart-line-price">${formatMoneyCents(line.unit_price_cents)}</div>`
-                            : html`<div class="cart-line-reason">${line.reason ?? 'Unavailable'}</div>`}
-                        </div>
-                        <div class="cart-line-controls">
-                          <form method="post" action="/cart/update" class="cart-qty-form" data-cart-form>
-                            <input type="hidden" name="_csrf" value="${token}">
-                            <input type="hidden" name="variation_id" value="${line.variation_id}">
-                            <label class="visually-hidden" for="qty-${line.variation_id}">Quantity</label>
-                            <input type="number" id="qty-${line.variation_id}" name="quantity" value="${line.qty}" min="0" max="50" inputmode="numeric">
-                            <button type="submit" class="btn btn-secondary btn-sm">Update</button>
-                          </form>
-                          <form method="post" action="/cart/remove" data-cart-form>
-                            <input type="hidden" name="_csrf" value="${token}">
-                            <input type="hidden" name="variation_id" value="${line.variation_id}">
-                            <button type="submit" class="cart-line-remove" aria-label="Remove">Remove</button>
-                          </form>
-                        </div>
-                        <div class="cart-line-subtotal">${formatMoneyCents(line.line_subtotal_cents)}</div>
-                      </div>`
-                    )}
-                  </div>
-                  <aside class="cart-summary">
-                    <h2>Summary</h2>
-                    <dl class="cart-summary-row"><dt>Subtotal</dt><dd>${formatMoneyCents(hydrated.subtotal_cents)}</dd></dl>
-                    <p class="cart-summary-hint">Shipping &amp; tax calculated at checkout.</p>
-                    ${hydrated.any_unavailable
-                      ? html`<p class="cart-summary-warning">Please remove unavailable items before checking out.</p>`
-                      : ''}
-                    <form method="post" action="/checkout" data-cart-form>
-                      <input type="hidden" name="_csrf" value="${token}">
-                      <button type="submit" class="btn btn-primary btn-large btn-block" ${hydrated.any_unavailable ? 'disabled aria-disabled="true"' : ''}>Checkout</button>
-                    </form>
-                    <a href="/catalog" class="cart-keep-shopping">← Keep shopping</a>
-                  </aside>
-                </div>`}
+        <section style="padding-bottom: 64px;">
+          <div class="wrap">
+            <div class="pagehead">
+              <span class="eyebrow">Your bag · ${itemCount} item${itemCount === 1 ? '' : 's'}</span>
+              <h1>Almost yours.</h1>
+            </div>
+            <div class="cart-grid">
+              <div class="cart-list">
+                ${hydrated.lines.map(
+                  (line) => html`<div class="cart-row ${line.available ? '' : 'cart-row-unavailable'}">
+                    <div class="cart-row-img">
+                      ${line.image_url
+                        ? html`<img src="${line.image_url}" alt="" width="240" height="300" loading="lazy">`
+                        : html`<div class="cart-row-fallback"></div>`}
+                    </div>
+                    <div class="cart-row-info">
+                      <div class="cart-row-name">${line.item_name}</div>
+                      ${line.variation_name ? html`<div class="cart-row-variation">${line.variation_name}</div>` : ''}
+                      ${line.available
+                        ? html`<div class="cart-row-price">${formatMoneyCents(line.unit_price_cents)} each</div>`
+                        : html`<div class="cart-row-reason">${line.reason ?? 'Unavailable'}</div>`}
+                      <div class="cart-row-controls">
+                        <form method="post" action="/cart/update" class="cart-qty-stepper" data-cart-form>
+                          <input type="hidden" name="_csrf" value="${token}">
+                          <input type="hidden" name="variation_id" value="${line.variation_id}">
+                          <button type="submit" name="quantity" value="${Math.max(0, line.qty - 1)}" aria-label="Decrease">−</button>
+                          <span class="cart-qty-n">${line.qty}</span>
+                          <button type="submit" name="quantity" value="${line.qty + 1}" aria-label="Increase">+</button>
+                        </form>
+                        <form method="post" action="/cart/remove" data-cart-form>
+                          <input type="hidden" name="_csrf" value="${token}">
+                          <input type="hidden" name="variation_id" value="${line.variation_id}">
+                          <button type="submit" class="cart-row-remove">Remove</button>
+                        </form>
+                      </div>
+                    </div>
+                    <div class="cart-row-subtotal">${formatMoneyCents(line.line_subtotal_cents)}</div>
+                  </div>`
+                )}
+                <div class="cart-note">
+                  <p class="script-note">A small note will be tucked inside, hand-written — it's just how we do.</p>
+                </div>
+              </div>
+              <aside class="cart-side">
+                <h3 class="cart-side-head">Summary</h3>
+                <div class="cart-side-row"><span>Subtotal</span><span>${formatMoneyCents(hydrated.subtotal_cents)}</span></div>
+                <div class="cart-side-row cart-side-row-muted"><span>Shipping</span><span>${shippingCents === 0 && hydrated.subtotal_cents > 0 ? 'Free' : shippingCents === 0 ? '—' : formatMoneyCents(shippingCents)}</span></div>
+                <div class="cart-side-row cart-side-row-muted"><span>Tax</span><span>Calculated at checkout</span></div>
+                ${hydrated.subtotal_cents > 0 && hydrated.subtotal_cents < 6000
+                  ? html`<p class="cart-side-hint">Add ${formatMoneyCents(6000 - hydrated.subtotal_cents)} for free shipping.</p>`
+                  : ''}
+                <div class="cart-side-total"><span>Total</span><span>${formatMoneyCents(totalCents)}</span></div>
+                ${hydrated.any_unavailable
+                  ? html`<p class="cart-side-warning">Please remove unavailable items before checking out.</p>`
+                  : ''}
+                ${hydrated.any_unavailable
+                  ? html`<button class="btn btn-primary btn-lg btn-block" disabled aria-disabled="true">Guest checkout · ${formatMoneyCents(totalCents)}</button>`
+                  : html`<a class="btn btn-primary btn-lg btn-block cart-side-form" href="/checkout?mode=guest">Guest checkout · ${formatMoneyCents(totalCents)}</a>`}
+                ${signedIn
+                  ? html`<a class="btn btn-secondary btn-sm btn-block cart-side-form-secondary" href="/checkout?mode=signin">Use your account</a>`
+                  : html`<a class="btn btn-secondary btn-sm btn-block cart-side-form-secondary" href="/login?return_to=%2Fcheckout%3Fmode%3Dsignin">Sign in for faster checkout</a>`}
+                <p class="cart-side-note">No account needed — we'll just need an email so we can send your tracking. Subscriptions require an account.</p>
+              </aside>
+            </div>
           </div>
         </section>`,
     })
   );
+});
+
+/** GET /cart/contents — JSON cart state for the drawer */
+cart.get('/contents', async (c) => {
+  const cartId = ensureCartCookie(c);
+  const raw = await loadCart(c.env, cartId);
+  const hydrated = await hydrateCartForDisplay(c.env, raw, { waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx) });
+  return c.json({ ok: true, ...summarize(hydrated) });
 });
 
 /** POST /cart/add — body: variation_id, quantity */
@@ -96,8 +132,12 @@ cart.post('/add', async (c) => {
   const quantity = Number(form.quantity ?? 1);
   if (!variationId) return c.json({ ok: false, error: 'missing variation_id' }, 400);
   try {
-    const updated = await addToCart(c.env, cartId, variationId, quantity);
-    if (acceptsJson(c)) return c.json({ ok: true, item_count: countItems(updated) });
+    await addToCart(c.env, cartId, variationId, quantity);
+    if (acceptsJson(c)) {
+      const fresh = await loadCart(c.env, cartId);
+      const hydrated = await hydrateCartForDisplay(c.env, fresh, { waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx) });
+      return c.json({ ok: true, ...summarize(hydrated) });
+    }
     return c.redirect('/cart', 303);
   } catch (err) {
     if (err instanceof CartError) return c.json({ ok: false, error: err.message }, 400);
@@ -112,7 +152,11 @@ cart.post('/update', async (c) => {
   const quantity = Number(form.quantity ?? 0);
   if (!variationId) return c.json({ ok: false, error: 'missing variation_id' }, 400);
   await updateCartLine(c.env, cartId, variationId, quantity);
-  if (acceptsJson(c)) return c.json({ ok: true });
+  if (acceptsJson(c)) {
+    const fresh = await loadCart(c.env, cartId);
+    const hydrated = await hydrateCartForDisplay(c.env, fresh, { waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx) });
+    return c.json({ ok: true, ...summarize(hydrated) });
+  }
   return c.redirect('/cart', 303);
 });
 
@@ -168,7 +212,11 @@ cart.post('/remove', async (c) => {
   const variationId = String(form.variation_id ?? '');
   if (!variationId) return c.json({ ok: false, error: 'missing variation_id' }, 400);
   await removeCartLine(c.env, cartId, variationId);
-  if (acceptsJson(c)) return c.json({ ok: true });
+  if (acceptsJson(c)) {
+    const fresh = await loadCart(c.env, cartId);
+    const hydrated = await hydrateCartForDisplay(c.env, fresh, { waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx) });
+    return c.json({ ok: true, ...summarize(hydrated) });
+  }
   return c.redirect('/cart', 303);
 });
 
@@ -177,8 +225,25 @@ function acceptsJson(c: any): boolean {
   return a.includes('application/json') && !a.includes('text/html');
 }
 
-function countItems(cart: { items: Array<{ qty: number }> }): number {
-  return cart.items.reduce((n, i) => n + i.qty, 0);
+function summarize(h: { lines: Array<{ variation_id: string; item_name: string; variation_name?: string | null; image_url?: string | null; unit_price_cents: number; qty: number; line_subtotal_cents: number; available: boolean; reason?: string | null }>; subtotal_cents: number; any_unavailable: boolean }) {
+  const count = h.lines.reduce((n, l) => n + l.qty, 0);
+  return {
+    item_count: count,
+    subtotal_cents: h.subtotal_cents,
+    subtotal_label: formatMoneyCents(h.subtotal_cents),
+    any_unavailable: h.any_unavailable,
+    lines: h.lines.map((l) => ({
+      variation_id: l.variation_id,
+      name: l.item_name,
+      variation: l.variation_name ?? '',
+      image: l.image_url ?? '',
+      unit_price_label: formatMoneyCents(l.unit_price_cents),
+      qty: l.qty,
+      subtotal_label: formatMoneyCents(l.line_subtotal_cents),
+      available: l.available,
+      reason: l.reason ?? null,
+    })),
+  };
 }
 
 export default cart;

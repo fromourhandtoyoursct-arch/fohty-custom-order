@@ -5,6 +5,7 @@ import { getCatalog, getItemById, primaryImageUrl } from '../lib/catalog';
 import { formatMoneyCents } from '../lib/money';
 import { csrfToken } from '../lib/csrf';
 import { listApprovedReviews, reviewSummary } from '../lib/reviews';
+import { ProductCard } from '../views/components/product-card';
 import type { Env, HonoVars } from '../types';
 
 const product = new Hono<{ Bindings: Env; Variables: HonoVars }>();
@@ -27,6 +28,8 @@ product.get('/:id', async (c) => {
   const otherImages = item.imageIds
     .map((id) => snap.imageById[id])
     .filter((img): img is NonNullable<typeof img> => !!img && img.url !== primary);
+  // Related: first 4 other items in the catalog (skip self).
+  const related = snap.items.filter((it) => it.id !== item.id).slice(0, 4);
 
   const [reviewSum, reviews] = await Promise.all([
     reviewSummary(c.env, item.id),
@@ -53,18 +56,23 @@ product.get('/:id', async (c) => {
 
             <div class="pdp">
               <div class="pdp-gallery">
-                <div class="pdp-main">
-                  ${primary
-                    ? html`<img src="${primary}" alt="${escapeAttr(item.name)}" width="800" height="800" decoding="async">`
-                    : html`<div class="pdp-fallback">No image</div>`}
-                </div>
                 ${otherImages.length > 0
-                  ? html`<div class="pdp-thumbs">
+                  ? html`<div class="pdp-thumbs pdp-thumbs-side">
+                      <button type="button" data-pdp-thumb class="on" data-image-src="${primary}" aria-label="Primary image">
+                        <img src="${primary}" alt="" loading="lazy" width="80" height="100">
+                      </button>
                       ${otherImages.map(
-                        (img) => html`<img src="${img.url}" alt="${escapeAttr(img.caption ?? item.name)}" loading="lazy" width="120" height="120">`
+                        (img) => html`<button type="button" data-pdp-thumb data-image-src="${img.url}" aria-label="${escapeAttr(img.caption ?? item.name)}">
+                          <img src="${img.url}" alt="" loading="lazy" width="80" height="100">
+                        </button>`
                       )}
                     </div>`
                   : ''}
+                <div class="pdp-main">
+                  ${primary
+                    ? html`<img data-pdp-main src="${primary}" alt="${escapeAttr(item.name)}" width="800" height="800" decoding="async">`
+                    : html`<div class="pdp-fallback">No image</div>`}
+                </div>
               </div>
 
               <div class="pdp-info">
@@ -171,6 +179,20 @@ product.get('/:id', async (c) => {
                   : ''}
               </div>
             </div>
+
+            ${related.length > 0
+              ? html`<section style="padding: 96px 0 24px;">
+                  <header class="sec-head">
+                    <div>
+                      <span class="eyebrow">Pair it with</span>
+                      <h2 style="margin-top: 8px;">You might also like</h2>
+                    </div>
+                  </header>
+                  <div class="cgrid">
+                    ${related.map((p) => ProductCard({ item: p, snap }))}
+                  </div>
+                </section>`
+              : ''}
           </div>
         </section>
         ${reviews.length > 0

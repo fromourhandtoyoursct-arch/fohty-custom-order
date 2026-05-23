@@ -67,6 +67,16 @@ subs.get('/', async (c) => {
             ${!isAuth && plans.length > 0
               ? html`<p class="hint" style="text-align:center;margin-top:24px;">You'll need to <a href="/login?return_to=/subscriptions">sign in</a> to subscribe.</p>`
               : ''}
+
+            <div class="subs-quiz-cta">
+              <span class="eyebrow">Want curated picks?</span>
+              <h3>Let our nail tech choose for you.</h3>
+              <p>Take a 4-question style quiz and we'll handcraft a fresh set in your style each month.</p>
+              <div class="subs-quiz-cta-actions">
+                <a class="btn btn-secondary btn-sm" href="/style-quiz?plan=classic">Quiz for Classic</a>
+                <a class="btn btn-secondary btn-sm" href="/style-quiz?plan=luxe">Quiz for Luxe</a>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -75,17 +85,10 @@ subs.get('/', async (c) => {
             <h2 class="subs-gift-head">Give the Gift of Great Nails</h2>
             <p class="subs-gift-sub">Know someone who deserves a little something special? Gift a single set or a full subscription. We'll send a branded digital gift card on the date you choose.</p>
             <div class="subs-gift-cards">
-              <a class="subs-gift-card" href="/gift-cards">
-                <h4>Gift a Set</h4>
-                <p>One handcrafted set, their choice of design.</p>
-                <span class="subs-gift-from">From $40</span>
-              </a>
-              <a class="subs-gift-card" href="/gift-cards">
-                <h4>Gift a Subscription</h4>
-                <p>3 or 6 months of fresh nails delivered monthly.</p>
-                <span class="subs-gift-from">From $120</span>
-              </a>
+              ${renderGiftDetails('set', token)}
+              ${renderGiftDetails('subscription', token)}
             </div>
+            <p class="subs-gift-foot">Or buy a flexible <a href="/gift-cards">digital gift card</a> in any amount.</p>
           </div>
         </section>
 
@@ -156,6 +159,79 @@ subs.get('/', async (c) => {
     })
   );
 });
+
+function renderGiftDetails(kind: 'set' | 'subscription', token: string) {
+  const title = kind === 'set' ? 'Gift a Set' : 'Gift a Subscription';
+  const desc = kind === 'set'
+    ? 'One handcrafted set, their choice of design.'
+    : '3 or 6 months of fresh nails delivered monthly.';
+  const priceLabel = kind === 'set' ? 'From $40' : 'From $120';
+
+  return html`<details class="subs-gift-card">
+    <summary>
+      <span class="subs-gift-card-head">
+        <span class="subs-gift-card-title">${title}</span>
+        <span class="subs-gift-card-desc">${desc}</span>
+        <span class="subs-gift-from">${priceLabel}</span>
+      </span>
+      <span class="subs-gift-card-toggle" aria-hidden="true">+</span>
+    </summary>
+    <form class="gift-inline-form" method="post" action="/gift-cards/gift">
+      <input type="hidden" name="_csrf" value="${token}">
+      <input type="hidden" name="kind" value="${kind}">
+
+      <div class="gift-section">
+        <div class="gift-section-label">Gift options</div>
+        <div class="gift-tier-row">
+          <label class="gift-tier"><input type="radio" name="tier" value="classic" required checked><span><span class="gift-tier-name">Classic</span><span class="gift-tier-price">${kind === 'set' ? '$40' : '$120'}</span></span></label>
+          <label class="gift-tier"><input type="radio" name="tier" value="luxe"><span><span class="gift-tier-name">Luxe</span><span class="gift-tier-price">${kind === 'set' ? '$50' : '$150'}</span></span></label>
+        </div>
+        ${kind === 'subscription'
+          ? html`<div class="gift-tier-row" style="margin-top:10px;">
+              <label class="gift-tier gift-tier-sm"><input type="radio" name="commitment" value="3" required checked><span><span class="gift-tier-name">3 months</span></span></label>
+              <label class="gift-tier gift-tier-sm"><input type="radio" name="commitment" value="6"><span><span class="gift-tier-name">6 months · Save more</span></span></label>
+            </div>`
+          : ''}
+      </div>
+
+      <div class="gift-section">
+        <div class="gift-section-label">From</div>
+        <div class="fld-row">
+          <div class="fld"><label>Your name</label><input name="sender_name" required maxlength="120" placeholder="Your full name"></div>
+          <div class="fld"><label>Your email</label><input name="sender_email" type="email" required maxlength="200" placeholder="you@example.com"></div>
+        </div>
+      </div>
+
+      <div class="gift-section">
+        <div class="gift-section-label">To</div>
+        <div class="fld-row">
+          <div class="fld"><label>Recipient's name</label><input name="recipient_name" required maxlength="120" placeholder="Their name"></div>
+          <div class="fld"><label>Recipient's email</label><input name="recipient_email" type="email" required maxlength="200" placeholder="them@there.com"></div>
+        </div>
+        <div class="fld"><label>Send gift notification on</label><input name="delivery_date" type="date"></div>
+        <div class="fld"><label>Personal message (optional)</label><textarea name="message" rows="3" maxlength="500" placeholder="A short note…"></textarea></div>
+      </div>
+
+      ${kind === 'set'
+        ? html`<div class="gift-section">
+            <div class="gift-section-label">Ship to recipient</div>
+            <div class="fld"><label>Street address</label><input name="ship_street" maxlength="160" placeholder="123 Main St"></div>
+            <div class="fld-row">
+              <div class="fld"><label>Apt, suite, unit</label><input name="ship_apt" maxlength="60" placeholder="Optional"></div>
+              <div class="fld"><label>City</label><input name="ship_city" maxlength="80"></div>
+            </div>
+            <div class="fld-row">
+              <div class="fld"><label>State</label><input name="ship_state" maxlength="2"></div>
+              <div class="fld"><label>ZIP</label><input name="ship_zip" maxlength="12"></div>
+            </div>
+          </div>`
+        : html`<p class="gift-note">No shipping needed — your recipient gets a branded digital gift card by email, and they choose where to ship each set when they redeem it.</p>`}
+
+      <button type="submit" class="subs-cta-sm gift-submit">Continue to payment →</button>
+      <p class="gift-dual-note">A gift notification and a receipt will be emailed to <strong>both you and your recipient</strong> on the date you choose.</p>
+    </form>
+  </details>`;
+}
 
 function renderPlanCard(plan: Awaited<ReturnType<typeof listSubscriptionPlans>>[number], featured: boolean, isAuth: boolean, token: string) {
   return html`<article class="subs-card${featured ? ' featured' : ''}">

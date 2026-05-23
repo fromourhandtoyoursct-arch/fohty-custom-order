@@ -1,5 +1,6 @@
 import { html } from 'hono/html';
 import type { Context } from 'hono';
+import { csrfToken } from '../lib/csrf';
 import type { Env, HonoVars } from '../types';
 
 interface LayoutProps {
@@ -16,6 +17,7 @@ export function Layout({ c, title, description, canonical, children }: LayoutPro
   const desc = description ?? 'Hand-crafted press-on nail sets. From Our Hand To Yours.';
   const canon = canonical ?? `${env.SITE_ORIGIN}${c.req.path}`;
   const signedIn = !!c.get('user_id');
+  const token = csrfToken(c);
 
   return html`<!DOCTYPE html>
 <html lang="en">
@@ -30,6 +32,7 @@ export function Layout({ c, title, description, canonical, children }: LayoutPro
   <meta property="og:type" content="website">
   <meta property="og:url" content="${canon}">
   <meta name="theme-color" content="#5C8B6E">
+  <meta name="csrf-token" content="${token}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap">
@@ -61,7 +64,7 @@ export function Layout({ c, title, description, canonical, children }: LayoutPro
             <circle cx="12" cy="9" r="3.5"></circle><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"></path>
           </svg>
         </a>
-        <a class="cart-pill" href="/cart" aria-label="Cart">
+        <a class="cart-pill" href="/cart" data-cart-open aria-label="Cart">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
             <path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 8Z"></path>
             <path d="M9 8V6a3 3 0 0 1 6 0v2"></path>
@@ -101,6 +104,34 @@ export function Layout({ c, title, description, canonical, children }: LayoutPro
   </div>
 
   <main>${children}</main>
+
+  <div class="scrim" data-drawer-scrim hidden></div>
+  <aside class="drawer" data-drawer hidden aria-hidden="true" aria-label="Your bag">
+    <div class="drawer-head">
+      <h3>Your bag</h3>
+      <button type="button" data-drawer-close aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="m6 6 12 12M18 6 6 18"></path>
+        </svg>
+      </button>
+    </div>
+    <div class="drawer-body" data-drawer-body>
+      <p class="drawer-empty" data-drawer-empty>Your bag is empty.</p>
+    </div>
+    <div class="drawer-foot" data-drawer-foot hidden>
+      <div class="drawer-row"><span>Subtotal</span><span data-drawer-subtotal>—</span></div>
+      <p class="drawer-hint" data-drawer-ship-hint hidden></p>
+      <p class="drawer-warning" data-drawer-warning hidden>Please remove unavailable items before checking out.</p>
+      <div class="drawer-actions">
+        <a class="btn btn-secondary btn-sm btn-block" href="/cart">View bag</a>
+        <a class="btn btn-primary btn-sm btn-block drawer-checkout-form" href="/checkout?mode=guest" data-drawer-checkout>Checkout</a>
+      </div>
+    </div>
+  </aside>
+
+  <div class="toast" data-toast hidden role="status" aria-live="polite"></div>
+
+  <span data-signed-in="${signedIn ? '1' : '0'}" hidden></span>
 
   <footer class="footer">
     <div class="footer-inner">
