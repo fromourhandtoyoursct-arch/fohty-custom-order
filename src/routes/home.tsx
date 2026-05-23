@@ -9,7 +9,6 @@ const home = new Hono<{ Bindings: Env; Variables: HonoVars }>();
 
 home.get('/', async (c) => {
   const snap = await getCatalog(c.env, { waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx) });
-  // Featured = first 8 sellable items; alphabetical for stability.
   const featured = snap.items.slice(0, 8);
 
   return c.html(
@@ -19,42 +18,40 @@ home.get('/', async (c) => {
       description: 'Hand-crafted press-on nail sets. Made in small batches by us.',
       children: html`
         <section class="hero">
-          <div class="container hero-inner">
-            <div class="hero-copy">
-              <h1>Hand-crafted, made just for you.</h1>
-              <p class="hero-sub">Beautiful press-on nail sets in small batches. From our hand to yours.</p>
-              <div class="hero-ctas">
-                <a class="btn btn-primary" href="/catalog">Shop the collection</a>
-                <a class="btn btn-secondary" href="/custom-order">Order custom</a>
+          <div class="wrap">
+            <div class="hero-title">
+              <h1>Mix. Match. Make it <span class="serif-italic">uniquely yours.</span></h1>
+              <div class="hero-tagline">
+                <span>24 Nails. One Set.</span>
+                <span class="sep" aria-hidden="true">|</span>
+                <span>Multiple Looks</span>
+                <span class="sep" aria-hidden="true">|</span>
+                <span>Reusable &amp; Built to Last</span>
+                <span class="sep" aria-hidden="true">|</span>
+                <span>Handcrafted by a Licensed Nail Tech</span>
+              </div>
+              <div class="hero-cta-row">
+                <a class="btn btn-primary btn-lg hero-cta" href="/catalog">
+                  Fresh from our hands
+                  <span class="hero-cta-arrow" aria-hidden="true">→</span>
+                </a>
               </div>
             </div>
+            <div class="hero-strip">
+              <div class="ph ph-warm"><span class="ph-label">hero · peach lace</span></div>
+              <div class="ph ph-mist"><span class="ph-label">detail · linen</span></div>
+              <div class="ph ph-ink"><span class="ph-label">set · iris</span></div>
+            </div>
           </div>
         </section>
-        <section class="section">
-          <div class="container">
-            <header class="section-header">
-              <h2>Featured</h2>
-              <a class="section-link" href="/catalog">View all →</a>
-            </header>
+
+        <section class="section-y">
+          <div class="wrap">
             ${featured.length === 0
               ? html`<p class="empty-state">Our shop is being prepared. Please check back soon.</p>`
-              : html`<div class="product-grid">
+              : html`<div class="cgrid">
                   ${featured.map((it) => ProductCard({ item: it, snap }))}
                 </div>`}
-          </div>
-        </section>
-        <section class="section section-band">
-          <div class="container two-col">
-            <div>
-              <h2>Subscribe & save</h2>
-              <p>Join the Press-On Club for a fresh set delivered monthly.</p>
-              <a class="btn btn-primary" href="/subscriptions">See plans</a>
-            </div>
-            <div>
-              <h2>Gift it</h2>
-              <p>Give the gift of beautifully manicured hands.</p>
-              <a class="btn btn-secondary" href="/gift-cards">Gift cards</a>
-            </div>
           </div>
         </section>`,
     })
