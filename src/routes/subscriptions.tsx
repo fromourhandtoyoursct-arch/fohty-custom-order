@@ -7,6 +7,8 @@ import { squareFetch } from '../lib/square';
 import { ensureUserHasSquareCustomer } from '../lib/customers';
 import { sha256Hex } from '../lib/crypto';
 import { formatMoneyCents } from '../lib/money';
+import { sendEmail } from '../lib/email';
+import { consume } from '../lib/rate-limit';
 import { requireAuth } from '../middleware/auth';
 import type { Env, HonoVars } from '../types';
 
@@ -20,6 +22,17 @@ function step(n: string, title: string, desc: string) {
   </div>`;
 }
 
+function applyStep(n: string, title: string, body: string) {
+  return html`<details class="subs-apply-step">
+    <summary class="subs-apply-head">
+      <span class="subs-apply-num">${n}</span>
+      <span class="subs-apply-title">${title}</span>
+      <span class="subs-apply-toggle" aria-hidden="true">+</span>
+    </summary>
+    <div class="subs-apply-body"><p>${body}</p></div>
+  </details>`;
+}
+
 const check = html`<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="#5C8B6E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7"></path></svg>`;
 
 subs.get('/', async (c) => {
@@ -31,6 +44,8 @@ subs.get('/', async (c) => {
   }
   const isAuth = Boolean(c.get('user_id'));
   const token = csrfToken(c);
+  const contactState = String(c.req.query('contact') ?? '').trim().slice(0, 20);
+  const contactBanner = contactBannerFor(contactState);
 
   return c.html(
     Layout({
@@ -53,11 +68,11 @@ subs.get('/', async (c) => {
         <section class="subs-section subs-pricing">
           <div class="wrap">
             <h1 class="subs-pricing-head">A new set in your mailbox, every month.</h1>
-            <p class="subs-pricing-sub">Pick a plan. Pause or cancel any time.</p>
+            <p class="subs-pricing-sub">Choose your commitment length — the longer you commit, the more you save.</p>
 
             <div class="subs-toggle" role="tablist" aria-label="Commitment length">
               <button type="button" class="subs-toggle-btn on" data-commit="3" role="tab" aria-selected="true">3 Months</button>
-              <button type="button" class="subs-toggle-btn" data-commit="6" role="tab" aria-selected="false">6 Months <span class="subs-toggle-save">Save More</span></button>
+              <button type="button" class="subs-toggle-btn" data-commit="6" role="tab" aria-selected="false">6 Months <span class="subs-toggle-save">(Save More)</span></button>
             </div>
 
             <div class="subs-cards">
@@ -132,14 +147,14 @@ subs.get('/', async (c) => {
 
             <div class="subs-info" id="how-to-apply">
               <h2 class="subs-info-head">How to Apply Our Press-Ons</h2>
-              <p class="subs-info-lead">A clean prep is everything. Take your time on steps 1 and 2 and your set will last.</p>
-              <ol class="subs-info-steps">
-                <li><span class="subs-info-num">1</span><div><h4>Prep your natural nails</h4><p>Wash hands, push back cuticles, gently file the surface to remove shine, and wipe each nail with alcohol. Dry completely.</p></div></li>
-                <li><span class="subs-info-num">2</span><div><h4>Size each finger</h4><p>Hold each press-on against your nail before applying — the right size covers the entire nail bed without overlapping the skin. Sizes XS–XL are included in every set.</p></div></li>
-                <li><span class="subs-info-num">3</span><div><h4>Apply your adhesive</h4><p>Adhesive tabs (2-week wear): peel and press one onto your natural nail. Nail glue (4+ week wear): a thin line on the natural nail and a small dot inside the press-on.</p></div></li>
-                <li><span class="subs-info-num">4</span><div><h4>Press &amp; hold</h4><p>Place the press-on at the cuticle line, press straight down for 10–15 seconds. Avoid water for the first hour.</p></div></li>
-              </ol>
-              <p class="subs-info-note">Each set ships with a free prep kit (file, cuticle pusher, alcohol pad, adhesive tabs). Need to remove? Soak in warm soapy water for 10 minutes and gently lift from the edge — never pry.</p>
+              <p class="subs-info-lead">4 steps to a salon-worthy look, no appointment needed.</p>
+              <div class="subs-apply">
+                ${applyStep('1', 'Start With Clean, Dry Nails', 'Wash your hands and dry thoroughly. Gently push back your cuticles, then lightly buff the surface of each natural nail to remove shine. Wipe each nail with the alcohol pad from your prep kit (included with every order) so the surface is clean, dry, and oil-free before you begin.')}
+                ${applyStep('2', 'Size & Place', "Hold each press-on against your natural nail before applying — the correct size covers your entire nail bed without overlapping the skin. Once you've matched all ten, apply a thin line of nail glue (or peel an adhesive tab and press it on) and place the press-on right at the cuticle line. Press firmly for at least 30 seconds.")}
+                ${applyStep('3', 'Smooth & Secure', 'Press from the center of the nail outward to push out any air bubbles. Hold each nail in place for the full 30 seconds before moving on. Once all ten are applied, avoid water for at least one hour so the adhesive can fully cure.')}
+                ${applyStep('4', 'Style & Go', "You're ready to go. To extend wear, dry your hands well after washing, wear gloves for cleaning, and apply cuticle oil daily around (not under) the press-on. With glue, expect 4+ weeks of wear; with adhesive tabs, around 2 weeks.")}
+              </div>
+              <p class="subs-info-note">A free prep kit (file, cuticle pusher, alcohol pad, adhesive tabs) ships with every order so you have everything you need to apply your nails like a pro.</p>
             </div>
 
             <div class="subs-info" id="shipping">
@@ -148,39 +163,49 @@ subs.get('/', async (c) => {
                 <div class="subs-info-card">
                   <h4>Standard Shipping</h4>
                   <p class="subs-info-price">$5.99</p>
-                  <p>Delivered in <strong>3–7 business days</strong>. Free over $75.</p>
+                  <p>Delivered in 3 to 7 business days.</p>
                 </div>
                 <div class="subs-info-card">
                   <h4>Rush Shipping</h4>
                   <p class="subs-info-price">$14.99</p>
-                  <p>Ships next business day, <strong>priority delivery</strong>.</p>
+                  <p>Ships next business day, priority delivery.</p>
                 </div>
               </div>
-              <p class="subs-info-note">Subscription sets ship on the first business day of each month. You'll receive a tracking link by email as soon as your order leaves the studio. We ship anywhere in the US; international shipping coming soon.</p>
+              <p class="subs-info-note">Ready-made sets ship within 1 to 2 business days after your order is confirmed. Custom orders ship within 3 to 5 business days. All orders receive tracking information via email once shipped.</p>
             </div>
 
             <div class="subs-info" id="returns">
               <h2 class="subs-info-head">Returns</h2>
-              <p class="subs-info-lead">We want you to love your set. Here's how it works.</p>
+              <p class="subs-info-lead">We want you to love your nails.</p>
               <ul class="subs-info-list">
-                <li><strong>Unopened, unused sets</strong> may be returned within 14 days of delivery. Return shipping is at the customer's expense.</li>
-                <li><strong>Custom orders</strong> and <strong>Nail Tech's Pick subscription sets</strong> are made to order and are final sale.</li>
-                <li>If anything arrives damaged or doesn't fit right, reach out within 7 days and we'll make it right — no questions asked.</li>
-                <li>All orders receive tracking information via email once shipped.</li>
+                <li>Unopened, unused sets may be returned within 14 days of delivery. Return shipping is at the customer's expense.</li>
+                <li>Custom orders and Nail Tech's Pick subscription sets are final sale and cannot be returned.</li>
+                <li>If a set arrives damaged or defective, contact us with photos and we will send a replacement at no cost.</li>
+                <li>All subscription changes or cancellations must be made before your next billing cycle.</li>
+                <li>If you have any concerns about your order, please contact us right away and we will be happy to work something out.</li>
               </ul>
-              <p class="subs-info-note">Questions before you buy? <a href="#contact">Drop us a line</a> — we'd rather get it right the first time.</p>
             </div>
 
             <div class="subs-info" id="contact">
               <h2 class="subs-info-head">Contact</h2>
-              <p class="subs-info-lead">We're real people. Reach out — we usually respond within 1 to 2 business days.</p>
-              <div class="subs-info-grid subs-info-grid-single">
-                <div class="subs-info-card">
-                  <h4>Email</h4>
-                  <p><a href="mailto:FromOurHandToYours.CT@Gmail.com">FromOurHandToYours.CT@Gmail.com</a></p>
-                  <p class="subs-info-small">Best for orders, custom briefs, and anything detailed.</p>
-                </div>
-              </div>
+              <p class="subs-info-lead">Have a question? Send us a message and we'll be in touch soon.</p>
+              ${contactBanner}
+              <form class="subs-contact-form" method="post" action="/subscriptions/contact">
+                <input type="hidden" name="_csrf" value="${token}">
+                <label class="subs-contact-field">
+                  <span class="subs-contact-label">Name</span>
+                  <input type="text" name="name" required maxlength="120" autocomplete="name">
+                </label>
+                <label class="subs-contact-field">
+                  <span class="subs-contact-label">Email</span>
+                  <input type="email" name="email" required maxlength="200" autocomplete="email">
+                </label>
+                <label class="subs-contact-field">
+                  <span class="subs-contact-label">Message</span>
+                  <textarea name="message" required rows="5" maxlength="3000"></textarea>
+                </label>
+                <button type="submit" class="subs-contact-submit">Send Message</button>
+              </form>
             </div>
 
           </div>
@@ -341,6 +366,48 @@ function cadenceLabel(cad: string): string {
   }
 }
 
+subs.post('/contact', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
+  const rl = await consume(c.env, { name: 'subs-contact-ip', limit: 5, periodSec: 3600 }, ip).catch(() => null);
+  if (rl && !rl.allowed) {
+    return c.redirect('/subscriptions?contact=rate_limited#contact', 303);
+  }
+
+  const form = await c.req.parseBody();
+  const name = String(form.name ?? '').trim().slice(0, 120);
+  const email = String(form.email ?? '').trim().slice(0, 200);
+  const message = String(form.message ?? '').trim().slice(0, 3000);
+
+  if (!name || !email || !message) {
+    return c.redirect('/subscriptions?contact=missing#contact', 303);
+  }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return c.redirect('/subscriptions?contact=invalid_email#contact', 303);
+  }
+
+  const studioHtml = `<!DOCTYPE html><html><body style="font-family:Helvetica,Arial,sans-serif;color:#2c4a38;background:#F5F0E8;padding:40px;">
+    <table style="max-width:560px;margin:0 auto;background:#fefdfb;border-radius:12px;padding:32px;border:1px solid #b8d4c4;">
+      <tr><td>
+        <h1 style="font-family:Georgia,serif;font-size:22px;margin:0 0 16px;color:#2c4a38;">New contact message</h1>
+        <p style="font-size:14px;margin:0 0 8px;"><strong>From:</strong> ${escapeHtml(name)} &lt;${escapeHtml(email)}&gt;</p>
+        <hr style="border:none;border-top:1px solid #b8d4c4;margin:16px 0;">
+        <p style="font-size:14px;line-height:1.6;white-space:pre-wrap;color:#2c4a38;">${escapeHtml(message)}</p>
+      </td></tr>
+    </table>
+  </body></html>`;
+
+  c.executionCtx.waitUntil(
+    sendEmail(c.env, {
+      to: 'FromOurHandToYours.CT@gmail.com',
+      subject: `New contact message — ${name}`,
+      html: studioHtml,
+      replyTo: email,
+    }).catch((err) => console.warn('subs.contact.email.failed', err instanceof Error ? err.message : String(err)))
+  );
+
+  return c.redirect('/subscriptions?contact=sent#contact', 303);
+});
+
 subs.post('/subscribe', requireAuth, async (c) => {
   const userId = c.get('user_id')!;
   const form = await c.req.parseBody();
@@ -400,5 +467,25 @@ subs.post('/subscribe', requireAuth, async (c) => {
   if (!url) return c.redirect('/subscriptions?error=checkout', 303);
   return c.redirect(url, 303);
 });
+
+function contactBannerFor(state: string) {
+  if (state === 'sent') {
+    return html`<div class="subs-contact-banner subs-contact-banner-ok">Thanks — your message is on its way. We'll be in touch soon.</div>`;
+  }
+  if (state === 'missing') {
+    return html`<div class="subs-contact-banner subs-contact-banner-err">Please fill in your name, email, and message.</div>`;
+  }
+  if (state === 'invalid_email') {
+    return html`<div class="subs-contact-banner subs-contact-banner-err">That email address doesn't look right. Please double-check it.</div>`;
+  }
+  if (state === 'rate_limited') {
+    return html`<div class="subs-contact-banner subs-contact-banner-err">You've sent a lot of messages recently. Please try again in an hour or email us directly.</div>`;
+  }
+  return '';
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 export default subs;
