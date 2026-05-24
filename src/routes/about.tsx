@@ -17,7 +17,7 @@ about.get('/about', (c) =>
             <span class="story-eyebrow">Our Story</span>
             <h1 class="story-head">
               <span class="story-head-line">Two best friends. One shared passion.</span>
-              <span class="story-head-line">Made by hand, uniquely yours.</span>
+              <span class="story-head-line">Made by hand, uniquely for you.</span>
             </h1>
             <div class="story-body">
               <p>Beautiful nails shouldn't mean hours at a salon. At From Our Hand To Yours, we create custom, handcrafted press-on nails made just for you, designed with care, built to last, and made to be reused again and again.</p>

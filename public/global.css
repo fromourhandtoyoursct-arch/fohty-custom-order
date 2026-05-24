@@ -1040,8 +1040,8 @@ p { margin-bottom: 1em; }
 }
 .story-head-line { display: block; }
 .story-body p {
-  font-family: var(--font-sans); font-size: 18px;
-  line-height: 1.7; color: #2c4a38;
+  font-family: var(--font-sans); font-size: 16px;
+  line-height: 1.7; color: #5a7a68;
   margin: 0 0 22px;
 }
 .story-cta {
