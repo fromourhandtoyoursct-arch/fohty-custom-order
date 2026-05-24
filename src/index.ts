@@ -16,6 +16,7 @@ import cart from './routes/cart';
 import checkout from './routes/checkout';
 import auth from './routes/auth';
 import account from './routes/account';
+import search from './routes/search';
 import subscriptions from './routes/subscriptions';
 import giftcards from './routes/giftcards';
 import reviews from './routes/reviews';
@@ -38,6 +39,7 @@ app.route('/product', reviews);   // POST /product/:id/review
 app.route('/cart', cart);
 app.route('/checkout', checkout);
 app.route('/account', account);
+app.route('/search', search);
 app.route('/subscriptions', subscriptions);
 app.route('/gift-cards', giftcards);
 app.route('/custom-order', customOrder);

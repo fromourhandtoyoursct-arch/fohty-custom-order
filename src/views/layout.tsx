@@ -77,7 +77,7 @@ export function Layout({ c, title, description, canonical, children }: LayoutPro
 
   <div class="search-overlay" data-search-overlay hidden role="dialog" aria-label="Search">
     <div class="search-panel">
-      <form class="search-input-row" data-search-form action="/catalog" method="get">
+      <form class="search-input-row" data-search-form action="/search" method="get">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
           <circle cx="11" cy="11" r="6.5"></circle><path d="m20 20-4.2-4.2"></path>
         </svg>
@@ -92,11 +92,11 @@ export function Layout({ c, title, description, canonical, children }: LayoutPro
         <div class="search-empty" data-search-empty>
           <div class="search-empty-label">Try</div>
           <div class="search-suggest-row">
-            <a class="search-suggest" href="/catalog?q=Almond">Almond</a>
-            <a class="search-suggest" href="/catalog?q=Coffin">Coffin</a>
-            <a class="search-suggest" href="/catalog?q=Bridal">Bridal</a>
-            <a class="search-suggest" href="/catalog?q=Holiday">Holiday</a>
-            <a class="search-suggest" href="/catalog?q=Everyday">Everyday</a>
+            <a class="search-suggest" href="/search?q=Almond">Almond</a>
+            <a class="search-suggest" href="/search?q=Coffin">Coffin</a>
+            <a class="search-suggest" href="/search?q=Bridal">Bridal</a>
+            <a class="search-suggest" href="/search?q=Holiday">Holiday</a>
+            <a class="search-suggest" href="/search?q=Everyday">Everyday</a>
           </div>
         </div>
       </div>
