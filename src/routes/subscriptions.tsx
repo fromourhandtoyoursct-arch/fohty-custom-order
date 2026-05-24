@@ -123,7 +123,7 @@ subs.get('/', async (c) => {
               ${renderGiftDetails('set', token)}
               ${renderGiftDetails('subscription', token)}
             </div>
-            <p class="subs-gift-foot">Or buy a flexible <a href="/gift-cards">digital gift card</a> in any amount.</p>
+
           </div>
         </section>
 

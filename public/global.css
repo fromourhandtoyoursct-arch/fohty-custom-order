@@ -2,25 +2,27 @@
  * Sage + cream, editorial spacing, low radii, hand-crafted warmth.
  */
 :root {
-  --sage: #5C8B6E;
-  --sage-deep: #3d6b4f;
+  /* Brand palette — exact spec values, used everywhere. */
+  --sage: #5C8B6E;       /* primary */
+  --sage-dark: #4a7a5c;  /* hover / secondary accent */
+  --sage-deep: #3d6b4f;  /* footer + dark sections */
   --sage-soft: #7aaa8e;
   --sage-mist: #E5EFE8;
-  --sage-faint: #eef5f1;
+  --sage-faint: rgba(92, 139, 110, 0.06); /* selected card backgrounds */
   --sage-glow: rgba(92, 139, 110, 0.13);
-  --cream: #FDFCF8;
-  --cream-warm: #F7F3E9;
+  --cream: #F5F0E8;      /* page background */
+  --cream-warm: #ede6d6;
   --cream-dark: #ede6d6;
-  --paper: #FFFFFF;
+  --paper: #fefdfb;      /* card background / white */
   --white: #fefdfb;
-  --ink: #26342D;
-  --ink-2: #3F5C50;
+  --ink: #2c4a38;        /* headings */
+  --ink-2: #5a7a68;      /* body */
   --text: #2c4a38;
   --text-light: #5a7a68;
   --text-muted: #8aa898;
-  --muted: #8FA39A;
+  --muted: #8aa898;
   --border: #b8d4c4;
-  --hair: #E6E0D2;
+  --hair: #b8d4c4;
   --rose: #C4847A;
   --rose-soft: #E8C8C0;
   --error: #B0533F;

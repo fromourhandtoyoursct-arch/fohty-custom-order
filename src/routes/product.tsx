@@ -76,7 +76,7 @@ product.get('/:id', async (c) => {
               </div>
 
               <div class="pdp-info">
-                <span class="eyebrow">Hand-painted</span>
+                <span class="eyebrow">Handcrafted</span>
                 <h1>${item.name}</h1>
                 <div class="pdp-price">${priceLabel}</div>
                 ${item.descriptionPlaintext || item.description

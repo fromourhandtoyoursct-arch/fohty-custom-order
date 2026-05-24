@@ -157,11 +157,11 @@ export function Layout({ c, title, description, canonical, children }: LayoutPro
       </div>
       <nav class="footer-links" aria-label="Footer">
         <a href="/subscriptions#how-to-apply">How to Apply</a>
-        <span class="footer-sep" aria-hidden="true">·</span>
+        <span class="footer-sep" aria-hidden="true">•</span>
         <a href="/subscriptions#shipping">Shipping</a>
-        <span class="footer-sep" aria-hidden="true">·</span>
+        <span class="footer-sep" aria-hidden="true">•</span>
         <a href="/subscriptions#returns">Returns</a>
-        <span class="footer-sep" aria-hidden="true">·</span>
+        <span class="footer-sep" aria-hidden="true">•</span>
         <a href="/subscriptions#contact">Contact</a>
       </nav>
       <div class="footer-bottom">

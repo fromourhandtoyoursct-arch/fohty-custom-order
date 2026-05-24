@@ -14,69 +14,8 @@ const gifts = new Hono<{ Bindings: Env; Variables: HonoVars }>();
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const RL_GIFT_IP = { name: 'gift-ip', limit: 10, periodSec: 3600 };
 
-/** GET /gift-cards — captures recipient details + amount in a single form. */
-gifts.get('/', async (c) => {
-  const snap = await getCatalog(c.env, { waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx) });
-  const giftItems = snap.items.filter((it) => /gift\s*card/i.test(it.name));
-  const token = csrfToken(c);
-  const error = c.req.query('error');
-
-  return c.html(
-    Layout({
-      c,
-      title: 'Gift cards',
-      description: 'Send a gift card by email. Recipient enters the code at checkout.',
-      children: html`
-        <section class="section">
-          <div class="container narrow-col">
-            <header class="page-header">
-              <h1>Gift cards</h1>
-              <p>Pick an amount, tell us who's getting it, and we'll email them the code after payment.</p>
-            </header>
-            ${error
-              ? html`<div class="alert alert-error">${errorMessage(error)}</div>`
-              : ''}
-            ${giftItems.length === 0
-              ? html`<div class="empty-state-card">
-                  <p>Gift cards aren't set up yet. Please check back soon.</p>
-                  <a class="btn btn-secondary" href="/catalog">Browse products</a>
-                </div>`
-              : html`<form class="gift-form" method="post" action="/gift-cards/purchase">
-                  <input type="hidden" name="_csrf" value="${token}">
-                  <label class="form-field">
-                    <span class="form-label">Amount</span>
-                    <select name="variation_id" required>
-                      ${giftItems.flatMap((it) =>
-                        it.variations.map(
-                          (v) => html`<option value="${v.id}">${formatMoneyCents(v.priceCents)}${v.name ? ` (${v.name})` : ''}</option>`
-                        )
-                      )}
-                    </select>
-                  </label>
-                  <label class="form-field">
-                    <span class="form-label">Recipient name</span>
-                    <input type="text" name="recipient_name" maxlength="120" placeholder="Jane Doe">
-                  </label>
-                  <label class="form-field">
-                    <span class="form-label">Recipient email</span>
-                    <input type="email" name="recipient_email" required maxlength="254" placeholder="jane@example.com" inputmode="email">
-                  </label>
-                  <label class="form-field">
-                    <span class="form-label">Your name (optional)</span>
-                    <input type="text" name="sender_name" maxlength="120">
-                  </label>
-                  <label class="form-field">
-                    <span class="form-label">Gift message (optional)</span>
-                    <textarea name="gift_message" rows="3" maxlength="500"></textarea>
-                  </label>
-                  <button type="submit" class="btn btn-primary btn-large btn-block">Continue to payment</button>
-                  <p class="hint hint-muted">You'll be redirected to Square to pay securely. The recipient receives the gift card code by email immediately after payment.</p>
-                </form>`}
-          </div>
-        </section>`,
-    })
-  );
-});
+/** GET /gift-cards — standalone gift page removed; gifts live inline on /subscriptions#gift. */
+gifts.get('/', (c) => c.redirect('/subscriptions#gift', 301));
 
 /** POST /gift-cards/purchase — creates a one-shot Payment Link with recipient metadata. */
 gifts.post('/purchase', async (c) => {

@@ -32,7 +32,7 @@ home.get('/', async (c) => {
               </div>
               <div class="hero-cta-row">
                 <a class="btn btn-primary btn-lg hero-cta" href="/catalog">
-                  Fresh from our hands
+                  Fresh from our hand
                   <span class="hero-cta-arrow" aria-hidden="true">→</span>
                 </a>
               </div>
