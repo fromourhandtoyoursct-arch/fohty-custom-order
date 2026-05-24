@@ -4,9 +4,17 @@ import { Layout } from '../views/layout';
 import { getCatalog, getItemById, primaryImageUrl } from '../lib/catalog';
 import { formatMoneyCents } from '../lib/money';
 import { csrfToken } from '../lib/csrf';
-import { listApprovedReviews, reviewSummary } from '../lib/reviews';
-import { ProductCard } from '../views/components/product-card';
 import type { Env, HonoVars } from '../types';
+
+const SHAPE_KEYWORDS = ['Almond', 'Coffin', 'Round', 'Square', 'Squoval', 'Stiletto', 'Holiday'];
+
+function detectShape(name: string, description: string | null | undefined): string {
+  const hay = `${name} ${description ?? ''}`.toLowerCase();
+  for (const s of SHAPE_KEYWORDS) {
+    if (hay.includes(s.toLowerCase())) return s;
+  }
+  return 'Almond';
+}
 
 const product = new Hono<{ Bindings: Env; Variables: HonoVars }>();
 
@@ -28,17 +36,16 @@ product.get('/:id', async (c) => {
   const otherImages = item.imageIds
     .map((id) => snap.imageById[id])
     .filter((img): img is NonNullable<typeof img> => !!img && img.url !== primary);
-  // Related: first 4 other items in the catalog (skip self).
-  const related = snap.items.filter((it) => it.id !== item.id).slice(0, 4);
-
-  const [reviewSum, reviews] = await Promise.all([
-    reviewSummary(c.env, item.id),
-    listApprovedReviews(c.env, item.id, 10),
-  ]);
 
   const priceLabel = item.variations.length === 1
     ? formatMoneyCents(item.variations[0]!.priceCents)
     : `From ${formatMoneyCents(Math.min(...item.variations.map((v) => v.priceCents)))}`;
+
+  const categoryName = item.categoryIds
+    .map((id) => snap.categories.find((cat) => cat.id === id)?.name)
+    .find((n): n is string => !!n);
+  const categoryLabel = (categoryName ?? 'Press-On Set').toUpperCase();
+  const shapeLabel = detectShape(item.name, item.descriptionPlaintext ?? item.description ?? '');
 
   return c.html(
     Layout({
@@ -76,7 +83,7 @@ product.get('/:id', async (c) => {
               </div>
 
               <div class="pdp-info">
-                <span class="eyebrow">Handcrafted</span>
+                <p class="pdp-category">${categoryLabel}</p>
                 <h1>${item.name}</h1>
                 <div class="pdp-price">${priceLabel}</div>
                 ${item.descriptionPlaintext || item.description
@@ -85,7 +92,7 @@ product.get('/:id', async (c) => {
 
                 <div class="pdp-spec-line">
                   <span class="pdp-spec-label">Shape:</span>
-                  <span class="pdp-spec-value">[Almond]</span>
+                  <span class="pdp-spec-value">${shapeLabel}</span>
                 </div>
                 <p class="pdp-spec-help">
                   Want this design in a different shape?
@@ -115,115 +122,54 @@ product.get('/:id', async (c) => {
                       <span class="form-label">Qty</span>
                       <input type="number" name="quantity" value="1" min="1" max="50" required inputmode="numeric">
                     </label>
-                    <button type="submit" class="btn btn-primary btn-lg pdp-add-btn">Add to bag</button>
+                    <button type="submit" class="btn btn-primary btn-lg pdp-add-btn">Add to Bag</button>
                   </div>
                 </form>
 
                 <div class="acc">
                   <details class="acc-row" open>
-                    <summary class="acc-head"><h4>How to apply</h4><span class="acc-plus" aria-hidden="true">+</span></summary>
+                    <summary class="acc-head"><h4>How to Apply</h4><span class="acc-plus" aria-hidden="true">+</span></summary>
                     <div class="acc-body"><ol class="acc-list">
                       <li>Start with clean, dry nails.</li>
                       <li>Gently push back cuticles using a cuticle stick.</li>
-                      <li>Lightly buff the surface of your natural nail to remove shine.</li>
-                      <li>Select the correct nail size for each finger. If between sizes, go with the smaller one.</li>
+                      <li>Lightly buff the surface of your natural nail to remove shine. This helps the press-on adhere better.</li>
+                      <li>Select the correct nail size for each finger. If between sizes, go with the smaller one for a snug fit.</li>
                       <li>Apply nail glue or an adhesive tab to your natural nail.</li>
-                      <li>Press the nail on firmly and hold for at least 30 seconds.</li>
+                      <li>Press the nail on firmly and hold for at least 30 seconds. Apply pressure from the center outward to remove air bubbles.</li>
                       <li>Repeat for all 10 fingers. Avoid water for at least one hour after application.</li>
                     </ol></div>
                   </details>
                   <details class="acc-row">
-                    <summary class="acc-head"><h4>How to remove</h4><span class="acc-plus" aria-hidden="true">+</span></summary>
+                    <summary class="acc-head"><h4>How to Remove</h4><span class="acc-plus" aria-hidden="true">+</span></summary>
                     <div class="acc-body"><ol class="acc-list">
-                      <li>Soak nails in warm soapy water (or acetone-free remover) for 10–15 minutes.</li>
-                      <li>Use a cuticle stick to gently lift the edges of the press-on. Start from the sides.</li>
+                      <li>Fill a bowl with warm, soapy water or use an acetone-free nail polish remover.</li>
+                      <li>Soak your nails for 10 to 15 minutes to loosen the adhesive.</li>
+                      <li>Use a cuticle stick to gently lift the edges of the press-on nail. Start from the sides, not the center.</li>
                       <li>Never force or pull a nail off. If it resists, soak for a few more minutes.</li>
-                      <li>Buff away any remaining adhesive, then apply cuticle oil to rehydrate.</li>
+                      <li>Once removed, gently buff away any remaining adhesive with a nail buffer or file.</li>
+                      <li>Wash your hands thoroughly and apply cuticle oil to rehydrate.</li>
                     </ol></div>
                   </details>
                   <details class="acc-row">
-                    <summary class="acc-head"><h4>Nail care tips</h4><span class="acc-plus" aria-hidden="true">+</span></summary>
+                    <summary class="acc-head"><h4>Nail Care Tips</h4><span class="acc-plus" aria-hidden="true">+</span></summary>
                     <div class="acc-body"><ul class="acc-list acc-list-bullets">
-                      <li>Apply cuticle oil daily.</li>
-                      <li>Avoid prolonged contact with water when possible.</li>
+                      <li>Apply cuticle oil daily to keep nails and cuticles healthy.</li>
+                      <li>When washing hands, avoid prolonged contact with water when possible.</li>
                       <li>Wear gloves when cleaning or using harsh chemicals.</li>
-                      <li>With proper care, press-ons can last 2+ weeks depending on activity level.</li>
+                      <li>With proper application and care, your press-ons can last even longer. Results vary depending on activity level and adhesive used.</li>
                     </ul></div>
                   </details>
-                  <details class="acc-row">
-                    <summary class="acc-head"><h4>Shipping</h4><span class="acc-plus" aria-hidden="true">+</span></summary>
-                    <div class="acc-body"><div class="acc-blocks">
-                      <div>
-                        <strong class="acc-strong">Standard Shipping: $5.99</strong>
-                        <p>Ready-made sets ship within 1–2 business days after your order is confirmed. Custom orders ship within 3–5 business days.</p>
-                      </div>
-                      <div>
-                        <strong class="acc-strong">Rush Shipping: $14.99</strong>
-                        <p>Ships next business day with priority delivery. Available for ready-made sets only.</p>
-                      </div>
-                      <p>All orders receive tracking information via email once shipped.</p>
-                    </div></div>
-                  </details>
-                  <details class="acc-row">
-                    <summary class="acc-head"><h4>Returns</h4><span class="acc-plus" aria-hidden="true">+</span></summary>
-                    <div class="acc-body"><p>Unopened, unused sets may be returned within 14 days of delivery. Return shipping is at the customer's expense. Custom orders are final sale. If you have any issues with your order, please contact us right away.</p></div>
-                  </details>
                 </div>
-
-                ${reviewSum.count > 0
-                  ? html`<div class="review-summary">
-                      <strong>${reviewSum.avg ? reviewSum.avg.toFixed(1) : '—'}</strong>
-                      <span class="review-stars">${stars(reviewSum.avg ?? 0)}</span>
-                      <span class="review-count">${reviewSum.count} review${reviewSum.count === 1 ? '' : 's'}</span>
-                    </div>`
-                  : ''}
               </div>
             </div>
-
-            ${related.length > 0
-              ? html`<section style="padding: 96px 0 24px;">
-                  <header class="sec-head">
-                    <div>
-                      <span class="eyebrow">Pair it with</span>
-                      <h2 style="margin-top: 8px;">You might also like</h2>
-                    </div>
-                  </header>
-                  <div class="cgrid">
-                    ${related.map((p) => ProductCard({ item: p, snap }))}
-                  </div>
-                </section>`
-              : ''}
           </div>
-        </section>
-        ${reviews.length > 0
-          ? html`<section class="section section-band">
-              <div class="container narrow-col">
-                <h2>Reviews</h2>
-                <ul class="review-list">
-                  ${reviews.map(
-                    (r) => html`<li class="review-item">
-                      <div class="review-item-head">
-                        <span class="review-stars">${stars(r.rating)}</span>
-                        ${r.title ? html`<strong class="review-title">${r.title}</strong>` : ''}
-                      </div>
-                      ${r.body ? html`<p class="review-body">${r.body}</p>` : ''}
-                    </li>`
-                  )}
-                </ul>
-              </div>
-            </section>`
-          : ''}`,
+        </section>`,
     })
   );
 });
 
 function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-}
-
-function stars(n: number): string {
-  const full = Math.round(Math.max(0, Math.min(5, n)));
-  return '★'.repeat(full) + '☆'.repeat(5 - full);
 }
 
 export default product;

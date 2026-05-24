@@ -8,7 +8,7 @@ import type { Env, HonoVars } from '../types';
 const catalog = new Hono<{ Bindings: Env; Variables: HonoVars }>();
 
 const LENGTHS = ['All', 'Short', 'Medium', 'Long'];
-const SHAPES = ['All', 'Almond', 'Coffin', 'Round', 'Square', 'Squoval', 'Stiletto', 'Holiday'];
+const SHAPES = ['Almond', 'Coffin', 'Round', 'Square', 'Squoval', 'Stiletto', 'Holiday'];
 
 function matches(item: { name: string; description?: string | null; descriptionPlaintext?: string | null }, term: string): boolean {
   if (!term || term === 'all') return true;
@@ -81,11 +81,9 @@ catalog.get('/', async (c) => {
                 </div>`
               : html`<div class="cgrid">
                   ${filtered.map((it) => ProductCard({ item: it, snap }))}
-                  ${!q && !shape && !length
-                    ? html`<div class="shop-soon-card" aria-hidden="true">
-                        <span>More being made by hand soon.</span>
-                      </div>`
-                    : ''}
+                  <div class="shop-soon-card" aria-hidden="true">
+                    <span>More being made by hand soon.</span>
+                  </div>
                 </div>`}
           </div>
         </section>`,

@@ -51,6 +51,9 @@ home.get('/', async (c) => {
               ? html`<p class="empty-state">Our shop is being prepared. Please check back soon.</p>`
               : html`<div class="cgrid">
                   ${featured.map((it) => ProductCard({ item: it, snap }))}
+                  <div class="shop-soon-card" aria-hidden="true">
+                    <span>More being made by hand soon.</span>
+                  </div>
                 </div>`}
           </div>
         </section>`,
