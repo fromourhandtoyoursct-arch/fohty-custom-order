@@ -192,7 +192,7 @@ customOrder.get('/', (c) => {
                 <div class="co-row">
                   <div class="co-fld">
                     <label for="co-dream">Tell us about your dream design</label>
-                    <textarea id="co-dream" name="dreamDesign" rows="5" maxlength="2000" placeholder="Colors you love, occasion, themes, vibes, or anything that helps us picture what you want. If you chose 'Other' for style, tell us more here. The more you share, the better we can make it yours."></textarea>
+                    <textarea id="co-dream" name="dreamDesign" rows="4" maxlength="2000" placeholder="Colors you love, occasion, themes, vibes, or anything that helps us picture what you want. If you chose 'Other' for style, tell us more here. The more you share, the better we can make it yours."></textarea>
                   </div>
                 </div>
                 <div class="co-row">
