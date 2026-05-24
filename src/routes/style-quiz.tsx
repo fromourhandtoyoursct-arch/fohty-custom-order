@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { html } from 'hono/html';
+import { html, raw } from 'hono/html';
 import { Layout } from '../views/layout';
 import { csrfToken } from '../lib/csrf';
 import { consume } from '../lib/rate-limit';
@@ -324,7 +324,7 @@ styleQuiz.get('/', async (c) => {
         </section>
 
         <script>
-          ${quizScript()}
+          ${raw(quizScript())}
         </script>`,
     })
   );
@@ -348,7 +348,7 @@ styleQuiz.get('/thanks', (c) => {
               </div>
               <h2 class="co-confirm-head">Order received!</h2>
               <p class="co-confirm-text">Your ${tier} subscription brief has been sent to our nail technician. You'll receive a confirmation email and we'll be in touch within 1-2 business days to finalize your first set.</p>
-              <p class="co-confirm-text co-studio-line">If we need to take payment for your first month, you'll receive a Square invoice by email.</p>
+              <p class="co-confirm-text co-studio-line">We'll reach out by email to walk you through the next steps before any charges.</p>
               <div style="display:inline-flex;gap:12px;margin-top:18px;flex-wrap:wrap;justify-content:center;">
                 <a class="btn btn-primary" href="/catalog">Keep shopping</a>
                 <a class="btn btn-secondary" href="/account">My account</a>
@@ -441,7 +441,7 @@ styleQuiz.post('/submit', async (c) => {
             <tr><td>
               <h1 style="font-family:Georgia,serif;font-size:24px;margin:0 0 16px;color:#2c4a38;">You're all set, ${esc(first)}!</h1>
               <p style="font-size:15px;line-height:1.55;">We've received your ${esc(plan)} subscription brief and we'll have your first set ready soon.</p>
-              <p style="font-size:15px;line-height:1.55;">If we need to take payment, you'll receive a Square invoice within 1-2 business days.</p>
+              <p style="font-size:15px;line-height:1.55;">We'll reach out within 1-2 business days to walk you through the next steps before any charges.</p>
               <p style="font-style:italic;color:#5C8B6E;margin-top:32px;font-family:Georgia,serif;">With love,<br>From Our Hand To Yours</p>
             </td></tr>
           </table>
